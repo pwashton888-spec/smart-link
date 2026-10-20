@@ -1,0 +1,15 @@
+# ค่าสำหรับ Supabase CLI (supabase start / supabase db push)
+project_id = "smart-link-workspace"
+
+[auth]
+site_url = "http://localhost:5173"
+additional_redirect_urls = ["http://localhost:5173/reset-password"]
+# ปิดการสมัครด้วยตัวเอง : บัญชีต้องสร้างโดยผู้ดูแลเท่านั้น
+enable_signup = false
+
+[auth.email]
+enable_signup = false
+enable_confirmations = true
+
+[functions.admin-users]
+verify_jwt = true
