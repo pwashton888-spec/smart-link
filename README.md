@@ -32,6 +32,8 @@
 
 ## การติดตั้ง
 
+> คู่มือภาษาไทยแบบทีละขั้นผ่าน Supabase Dashboard (ไม่ต้องใช้ CLI): [SETUP-TH.md](SETUP-TH.md)
+
 1. สร้างโปรเจกต์ที่ [supabase.com](https://supabase.com)
 2. รัน migration (เลือกวิธีใดวิธีหนึ่ง)
    - Supabase CLI: `npx supabase link --project-ref <ref>` แล้ว `npx supabase db push`
