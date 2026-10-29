@@ -93,3 +93,21 @@ export interface ActivityLog {
   created_at: string
   actor?: { full_name: string; email: string } | null
 }
+
+export interface AppNotification {
+  id: number
+  kind: 'new_link' | 'link_broken'
+  title: string
+  body: string | null
+  link_id: string | null
+  is_read: boolean
+  created_at: string
+}
+
+export interface LinkCheck {
+  link_id: string
+  status: 'ok' | 'broken'
+  http_status: number | null
+  detail: string | null
+  checked_at: string
+}

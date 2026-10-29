@@ -21,6 +21,9 @@
 2. ตั้งชื่อ function ว่า `admin-users` (ต้องตรงตัวนี้)
 3. ลบโค้ดตัวอย่าง แล้ววางโค้ดจากไฟล์ [`supabase/functions/admin-users/index.ts`](supabase/functions/admin-users/index.ts) กด **Deploy**
 4. ไม่ต้องตั้งค่า key เพิ่ม Supabase ใส่ `SUPABASE_URL`, `SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY` ให้อัตโนมัติ
+5. ทำซ้ำอีกครั้งสำหรับ function ตรวจลิงก์: ตั้งชื่อ `check-links` แล้ววางโค้ดจาก [`supabase/functions/check-links/index.ts`](supabase/functions/check-links/index.ts)
+
+> ในหน้า Editor ชื่อไฟล์ทางซ้ายต้องเป็น `index.ts` เสมอ ส่วนชื่อ function (`admin-users` / `check-links`) ใส่ในช่องชื่อ function
 
 ## ขั้นที่ 4 สร้างผู้ดูแลระบบคนแรก (ไม่มีรหัสผ่านเริ่มต้น)
 1. **Authentication > Users > Add user > Send invitation** ใส่อีเมลของคุณ
@@ -49,3 +52,14 @@ VITE_SUPABASE_URL=https://enzunufmyowzlxnqkisc.supabase.co
 VITE_SUPABASE_ANON_KEY=<anon key ของโปรเจกต์>
 ```
 anon key เป็น key สาธารณะที่ใช้ฝั่งเว็บได้ (ข้อมูลถูกป้องกันด้วย RLS) **ห้าม** ใส่ service role key ในเว็บเด็ดขาด
+
+## อัปเดตระบบแจ้งเตือน (สำหรับผู้ที่ติดตั้งก่อน 29 ต.ค. 2569)
+ถ้าเคยรัน `setup.sql` ไปแล้ว **ไม่ต้องรันใหม่ทั้งไฟล์** (จะขึ้น error ว่าตารางมีอยู่แล้ว) ให้ทำ 3 อย่างนี้แทน
+1. **SQL Editor** > New query > วางไฟล์ [`supabase/migrations/20261029000001_notifications.sql`](supabase/migrations/20261029000001_notifications.sql) แล้วกด **Run**
+2. Deploy Edge Function `check-links` ตามขั้นที่ 3 ข้อ 5
+3. ปิดหน้าต่าง start-windows.bat เดิม แล้วเปิดเว็บจากไฟล์โปรเจกต์ชุดใหม่ (หรือ Vercel จะ deploy ใหม่ให้เองเมื่อโค้ดอัปเดต)
+
+**ใช้งาน**
+- ไอคอนกระดิ่งมุมขวาบน: แจ้งเตือนเมื่อมีลิงก์ส่วนกลางใหม่ (พนักงานทุกคนได้รับ ยกเว้นผู้สร้าง) และเมื่อพบลิงก์เสีย (เฉพาะผู้ดูแลระบบ)
+- หน้า **จัดการลิงก์** > ปุ่ม **ตรวจสอบลิงก์ทั้งหมด**: ตรวจทุกลิงก์ที่เปิดใช้งาน ลิงก์ที่เปิดไม่ได้จะขึ้นป้าย "ลิงก์เสีย" และแจ้งเตือนผู้ดูแลทุกคน (ลิงก์ที่เสียต่อเนื่องจะไม่แจ้งซ้ำ)
+- การตรวจทำจากเซิร์ฟเวอร์ของ Supabase เว็บภายในที่ต้องใช้ VPN จึงอาจขึ้นว่าเสียทั้งที่เปิดได้ในออฟฟิศ ส่วนเว็บที่ต้องเข้าสู่ระบบก่อน (ตอบกลับ 401/403) ถือว่าใช้ได้

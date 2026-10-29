@@ -1,12 +1,13 @@
 import { useMemo, useState } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
-import { ArrowDown, ArrowUp, Globe, Link2, Pencil, Plus, Search, Star, Trash2, Users } from 'lucide-react'
+import { AlertTriangle, ArrowDown, ArrowUp, Globe, Link2, Loader2, Pencil, Plus, Search, ShieldCheck, Star, Trash2, Users } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { useCategories, useRawLinks, useRoles } from '@/hooks/data'
-import { useAdminProfiles } from '@/hooks/admin'
+import { callCheckLinks, useAdminProfiles, useLinkChecks } from '@/hooks/admin'
 import type { LinkRow } from '@/lib/types'
-import { cn, errorMessage, hostnameOf } from '@/lib/utils'
+import { cn, errorMessage, formatDateTime, hostnameOf } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Select, SELECT_NONE } from '@/components/ui/select'
@@ -25,11 +26,14 @@ export default function AdminLinksPage() {
   const { data: roles = [] } = useRoles()
   const { data: categories = [] } = useCategories()
   const { data: profiles = [] } = useAdminProfiles()
+  const { data: checks } = useLinkChecks()
+  const [searchParams] = useSearchParams()
 
   const [query, setQuery] = useState('')
   const [catFilter, setCatFilter] = useState(SELECT_NONE)
   const [accessFilter, setAccessFilter] = useState(SELECT_NONE)
-  const [statusFilter, setStatusFilter] = useState(SELECT_NONE)
+  const [statusFilter, setStatusFilter] = useState(searchParams.get('status') ?? SELECT_NONE)
+  const [checking, setChecking] = useState(false)
   const [editing, setEditing] = useState<LinkRow | null | undefined>(undefined)
   const [deleting, setDeleting] = useState<LinkRow | null>(null)
 
@@ -56,10 +60,11 @@ export default function AdminLinksPage() {
       if (statusFilter === 'active' && !l.is_active) return false
       if (statusFilter === 'inactive' && l.is_active) return false
       if (statusFilter === 'featured' && !l.is_featured) return false
+      if (statusFilter === 'broken' && checks?.get(l.id)?.status !== 'broken') return false
       if (!q) return true
       return [l.title, l.url, l.description ?? '', l.tags.join(' '), l.group_name ?? ''].some((s) => s.toLowerCase().includes(q))
     })
-  }, [orgLinks, query, catFilter, accessFilter, statusFilter])
+  }, [orgLinks, query, catFilter, accessFilter, statusFilter, checks])
 
   async function patch(link: LinkRow, values: Partial<LinkRow>, message: string) {
     queryClient.setQueryData<LinkRow[]>(['links'], (old) => old?.map((l) => (l.id === link.id ? { ...l, ...values } : l)))
@@ -86,6 +91,36 @@ export default function AdminLinksPage() {
     const { error } = await supabase.rpc('reorder_links', { p_ids: ids })
     if (error) toast.error(errorMessage(error))
     queryClient.invalidateQueries({ queryKey: ['links'] })
+  }
+
+  async function checkAll() {
+    setChecking(true)
+    try {
+      const res = await callCheckLinks()
+      if (res.broken.length) {
+        toast.error(`ตรวจ ${res.checked} ลิงก์ พบลิงก์เสีย ${res.broken.length} รายการ`)
+        setStatusFilter('broken')
+      } else {
+        toast.success(`ตรวจ ${res.checked} ลิงก์ ทุกลิงก์เปิดได้ปกติ`)
+      }
+    } catch (err) {
+      toast.error(errorMessage(err))
+    } finally {
+      setChecking(false)
+      queryClient.invalidateQueries({ queryKey: ['admin', 'link-checks'] })
+    }
+  }
+
+  const brokenCount = useMemo(() => orgLinks.filter((l) => checks?.get(l.id)?.status === 'broken').length, [orgLinks, checks])
+
+  function CheckBadge({ l }: { l: LinkRow }) {
+    const c = checks?.get(l.id)
+    if (c?.status !== 'broken') return null
+    return (
+      <Badge variant="destructive" title={`${c.detail ?? ''} · ตรวจเมื่อ ${formatDateTime(c.checked_at)}`} className="shrink-0">
+        <AlertTriangle className="h-3 w-3" /> ลิงก์เสีย
+      </Badge>
+    )
   }
 
   async function remove(link: LinkRow) {
@@ -117,8 +152,15 @@ export default function AdminLinksPage() {
     <div className="space-y-6">
       <AdminHeader
         title="จัดการลิงก์"
-        description={`ลิงก์ขององค์กรทั้งหมด ${orgLinks.length} รายการ`}
-        action={<Button onClick={() => setEditing(null)}><Plus /> เพิ่มลิงก์</Button>}
+        description={`ลิงก์ขององค์กรทั้งหมด ${orgLinks.length} รายการ${brokenCount ? ` · ลิงก์เสีย ${brokenCount} รายการ` : ''}`}
+        action={
+          <>
+            <Button variant="outline" onClick={checkAll} disabled={checking || !orgLinks.length} title="ตรวจว่าลิงก์ที่เปิดใช้งานทั้งหมดยังเปิดได้ และแจ้งเตือนผู้ดูแลเมื่อพบลิงก์เสีย">
+              {checking ? <Loader2 className="animate-spin" /> : <ShieldCheck />} {checking ? 'กำลังตรวจลิงก์...' : 'ตรวจสอบลิงก์ทั้งหมด'}
+            </Button>
+            <Button onClick={() => setEditing(null)}><Plus /> เพิ่มลิงก์</Button>
+          </>
+        }
       />
 
       <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-[1fr_200px_200px_170px]">
@@ -145,6 +187,7 @@ export default function AdminLinksPage() {
             { value: 'active', label: 'เปิดใช้งาน' },
             { value: 'inactive', label: 'ปิดใช้งาน' },
             { value: 'featured', label: 'ลิงก์แนะนำ' },
+            { value: 'broken', label: 'ลิงก์เสีย (จากการตรวจล่าสุด)' },
           ]}
         />
       </div>
@@ -181,7 +224,10 @@ export default function AdminLinksPage() {
                 <div className="flex min-w-0 items-center gap-3">
                   <LinkIcon title={l.title} url={l.url} iconUrl={l.icon_url} size="sm" />
                   <div className="min-w-0">
-                    <p className="truncate text-sm font-medium">{l.title}</p>
+                    <div className="flex min-w-0 items-center gap-2">
+                      <p className="truncate text-sm font-medium">{l.title}</p>
+                      <CheckBadge l={l} />
+                    </div>
                     <p className="truncate text-xs text-muted-foreground">{hostnameOf(l.url)}{l.group_name && ` · ${l.group_name}`}</p>
                     <div className="mt-1 lg:hidden"><AccessCell l={l} /></div>
                   </div>
