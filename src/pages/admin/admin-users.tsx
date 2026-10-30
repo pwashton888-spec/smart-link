@@ -1,13 +1,13 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
-import { Ban, CheckCircle2, KeyRound, Pencil, Search, ShieldCheck, UserPlus, Users } from 'lucide-react'
+import { Ban, CheckCircle2, Copy, KeyRound, Mail, Pencil, Search, ShieldCheck, UserPlus, UserRound, Users, Wand2 } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/providers/auth'
 import { useRoles } from '@/hooks/data'
 import { callAdminUsers, useAdminProfiles, type AdminProfile } from '@/hooks/admin'
 import type { Role } from '@/lib/types'
-import { cn, errorMessage, formatDateTime, initials, relativeTime } from '@/lib/utils'
+import { cn, errorMessage, formatDateTime, initials, loginName, randomPassword, relativeTime } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Field, Label } from '@/components/ui/label'
@@ -17,6 +17,7 @@ import { Checkbox } from '@/components/ui/checkbox'
 import { Badge, RoleBadge } from '@/components/ui/badge'
 import { Skeleton } from '@/components/ui/skeleton'
 import { ConfirmDialog } from '@/components/ui/alert-dialog'
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { EmptyState, ErrorState } from '@/components/empty-state'
 import { AdminHeader } from './admin-header'
@@ -39,22 +40,65 @@ function RolePicker({ roles, value, onChange }: { roles: Role[]; value: string[]
   )
 }
 
-function InviteDialog({ open, onOpenChange, roles }: { open: boolean; onOpenChange: (o: boolean) => void; roles: Role[] }) {
+type AddMode = 'username' | 'email'
+
+/** แสดงข้อมูลเข้าสู่ระบบพร้อมปุ่มคัดลอก เพื่อส่งต่อให้พนักงาน */
+function CredentialsCard({ username, password }: { username: string; password: string }) {
+  const text = `เว็บไซต์: ${window.location.origin}\nชื่อผู้ใช้: ${username}\nรหัสผ่านชั่วคราว: ${password}\n(ระบบจะให้ตั้งรหัสผ่านใหม่เมื่อเข้าสู่ระบบครั้งแรก)`
+  async function copy() {
+    try {
+      await navigator.clipboard.writeText(text)
+      toast.success('คัดลอกข้อมูลเข้าสู่ระบบแล้ว')
+    } catch {
+      toast.error('คัดลอกไม่สำเร็จ กรุณาคัดลอกด้วยตนเอง')
+    }
+  }
+  return (
+    <div className="space-y-3 rounded-xl border border-teal/30 bg-teal/5 p-4">
+      <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1.5 text-sm">
+        <dt className="text-muted-foreground">เว็บไซต์</dt><dd className="break-all font-medium">{window.location.origin}</dd>
+        <dt className="text-muted-foreground">ชื่อผู้ใช้</dt><dd className="font-mono font-medium">{username}</dd>
+        <dt className="text-muted-foreground">รหัสผ่านชั่วคราว</dt><dd className="font-mono font-medium">{password}</dd>
+      </dl>
+      <Button type="button" variant="outline" size="sm" onClick={copy}><Copy /> คัดลอกข้อมูลทั้งหมด</Button>
+      <p className="text-xs text-muted-foreground">ส่งข้อมูลนี้ให้พนักงาน เมื่อเข้าสู่ระบบครั้งแรกระบบจะบังคับให้ตั้งรหัสผ่านใหม่ ปิดหน้าต่างนี้แล้วจะดูรหัสผ่านอีกไม่ได้</p>
+    </div>
+  )
+}
+
+function TempPasswordInput({ id, value, onChange }: { id: string; value: string; onChange: (v: string) => void }) {
+  return (
+    <div className="flex gap-2">
+      <Input id={id} value={value} onChange={(e) => onChange(e.target.value)} className="font-mono" autoComplete="off" spellCheck={false} required />
+      <Button type="button" variant="outline" className="shrink-0" onClick={() => onChange(randomPassword())}><Wand2 /> สุ่มใหม่</Button>
+    </div>
+  )
+}
+
+function AddUserDialog({ open, onOpenChange, roles }: { open: boolean; onOpenChange: (o: boolean) => void; roles: Role[] }) {
   const queryClient = useQueryClient()
+  const [mode, setMode] = useState<AddMode>('username')
+  const [username, setUsername] = useState('')
+  const [password, setPassword] = useState('')
   const [email, setEmail] = useState('')
   const [name, setName] = useState('')
   const [jobTitle, setJobTitle] = useState('')
   const [roleIds, setRoleIds] = useState<string[]>([])
   const [isAdmin, setIsAdmin] = useState(false)
   const [saving, setSaving] = useState(false)
+  const [created, setCreated] = useState<{ username: string; password: string } | null>(null)
 
   useEffect(() => {
     if (open) {
+      setMode('username')
+      setUsername('')
+      setPassword(randomPassword())
       setEmail('')
       setName('')
       setJobTitle('')
       setRoleIds([])
       setIsAdmin(false)
+      setCreated(null)
     }
   }, [open])
 
@@ -62,18 +106,18 @@ function InviteDialog({ open, onOpenChange, roles }: { open: boolean; onOpenChan
     e.preventDefault()
     setSaving(true)
     try {
-      await callAdminUsers({
-        action: 'invite',
-        email,
-        full_name: name,
-        job_title: jobTitle,
-        role_ids: roleIds,
-        is_admin: isAdmin,
-        redirect_to: `${window.location.origin}/reset-password`,
-      })
-      toast.success(`ส่งอีเมลเชิญไปที่ ${email} แล้ว`)
+      const common = { full_name: name, job_title: jobTitle, role_ids: roleIds, is_admin: isAdmin }
+      if (mode === 'username') {
+        const uname = username.trim().toLowerCase()
+        await callAdminUsers({ action: 'create_user', username: uname, password, ...common })
+        toast.success(`สร้างบัญชี ${uname} แล้ว`)
+        setCreated({ username: uname, password })
+      } else {
+        await callAdminUsers({ action: 'invite', email, ...common, redirect_to: `${window.location.origin}/reset-password` })
+        toast.success(`ส่งอีเมลเชิญไปที่ ${email} แล้ว`)
+        onOpenChange(false)
+      }
       queryClient.invalidateQueries({ queryKey: ['admin', 'profiles'] })
-      onOpenChange(false)
     } catch (err) {
       toast.error(errorMessage(err))
     } finally {
@@ -85,37 +129,153 @@ function InviteDialog({ open, onOpenChange, roles }: { open: boolean; onOpenChan
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-xl">
         <DialogHeader>
-          <DialogTitle>เพิ่มพนักงาน</DialogTitle>
-          <DialogDescription>ระบบจะส่งอีเมลเชิญให้พนักงานตั้งรหัสผ่านเอง (ระบบไม่สร้างรหัสผ่านให้)</DialogDescription>
+          <DialogTitle>{created ? 'สร้างบัญชีเรียบร้อย' : 'เพิ่มพนักงาน'}</DialogTitle>
+          <DialogDescription>
+            {created
+              ? `บัญชีของ ${name} พร้อมใช้งานแล้ว`
+              : mode === 'username'
+                ? 'กำหนดชื่อผู้ใช้และรหัสผ่านชั่วคราวให้พนักงาน พนักงานต้องตั้งรหัสผ่านใหม่เมื่อเข้าสู่ระบบครั้งแรก'
+                : 'ระบบจะส่งอีเมลเชิญให้พนักงานตั้งรหัสผ่านเอง'}
+          </DialogDescription>
         </DialogHeader>
-        <form onSubmit={submit} className="space-y-4">
-          <div className="grid gap-4 sm:grid-cols-2">
-            <Field label="ชื่อ-นามสกุล *" htmlFor="inv-name">
-              <Input id="inv-name" value={name} onChange={(e) => setName(e.target.value)} required autoFocus />
-            </Field>
-            <Field label="อีเมล *" htmlFor="inv-email">
-              <Input id="inv-email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} required />
-            </Field>
+        {created ? (
+          <div className="space-y-4">
+            <CredentialsCard username={created.username} password={created.password} />
+            <DialogFooter>
+              <Button onClick={() => onOpenChange(false)}>เสร็จสิ้น</Button>
+            </DialogFooter>
           </div>
-          <Field label="ชื่อตำแหน่งที่แสดง (ไม่บังคับ)" htmlFor="inv-job">
-            <Input id="inv-job" value={jobTitle} onChange={(e) => setJobTitle(e.target.value)} />
-          </Field>
-          <div className="space-y-2">
-            <Label>ตำแหน่งงาน (เลือกได้หลายตำแหน่ง)</Label>
-            <RolePicker roles={roles} value={roleIds} onChange={setRoleIds} />
-          </div>
-          <label className="flex items-start gap-3 rounded-xl border border-amber-500/30 bg-amber-500/5 p-3">
-            <Switch checked={isAdmin} onCheckedChange={setIsAdmin} />
-            <span className="text-sm">
-              <span className="block font-medium">สิทธิ์ผู้ดูแลระบบ</span>
-              <span className="text-xs text-muted-foreground">จัดการบัญชี ลิงก์ และสิทธิ์พนักงานทั้งหมดได้</span>
-            </span>
-          </label>
-          <DialogFooter>
-            <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>ยกเลิก</Button>
-            <Button type="submit" loading={saving}><UserPlus /> ส่งคำเชิญ</Button>
-          </DialogFooter>
-        </form>
+        ) : (
+          <form onSubmit={submit} className="space-y-4">
+            <Tabs value={mode} onValueChange={(v) => setMode(v as AddMode)}>
+              <TabsList className="w-full">
+                <TabsTrigger value="username" className="flex-1"><UserRound className="h-4 w-4" /> ชื่อผู้ใช้ + รหัสผ่าน</TabsTrigger>
+                <TabsTrigger value="email" className="flex-1"><Mail className="h-4 w-4" /> เชิญทางอีเมล</TabsTrigger>
+              </TabsList>
+            </Tabs>
+            <div className="grid gap-4 sm:grid-cols-2">
+              <Field label="ชื่อ-นามสกุล *" htmlFor="inv-name">
+                <Input id="inv-name" value={name} onChange={(e) => setName(e.target.value)} required autoFocus />
+              </Field>
+              {mode === 'username' ? (
+                <Field label="ชื่อผู้ใช้ *" htmlFor="inv-username" hint="a-z 0-9 . _ - (3-30 ตัว)">
+                  <Input
+                    id="inv-username"
+                    value={username}
+                    onChange={(e) => setUsername(e.target.value.toLowerCase().replace(/\s/g, ''))}
+                    pattern="[a-z0-9._\-]{3,30}"
+                    placeholder="somsri"
+                    autoComplete="off"
+                    spellCheck={false}
+                    required
+                  />
+                </Field>
+              ) : (
+                <Field label="อีเมล *" htmlFor="inv-email">
+                  <Input id="inv-email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} required />
+                </Field>
+              )}
+            </div>
+            {mode === 'username' && (
+              <Field label="รหัสผ่านชั่วคราว *" htmlFor="inv-pw" hint="อย่างน้อย 8 ตัว มีทั้งตัวอักษรและตัวเลข">
+                <TempPasswordInput id="inv-pw" value={password} onChange={setPassword} />
+              </Field>
+            )}
+            <Field label="ชื่อตำแหน่งที่แสดง (ไม่บังคับ)" htmlFor="inv-job">
+              <Input id="inv-job" value={jobTitle} onChange={(e) => setJobTitle(e.target.value)} />
+            </Field>
+            <div className="space-y-2">
+              <Label>ตำแหน่งงาน (เลือกได้หลายตำแหน่ง)</Label>
+              <RolePicker roles={roles} value={roleIds} onChange={setRoleIds} />
+            </div>
+            <label className="flex items-start gap-3 rounded-xl border border-amber-500/30 bg-amber-500/5 p-3">
+              <Switch checked={isAdmin} onCheckedChange={setIsAdmin} />
+              <span className="text-sm">
+                <span className="block font-medium">สิทธิ์ผู้ดูแลระบบ</span>
+                <span className="text-xs text-muted-foreground">จัดการบัญชี ลิงก์ และสิทธิ์พนักงานทั้งหมดได้</span>
+              </span>
+            </label>
+            <DialogFooter>
+              <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>ยกเลิก</Button>
+              <Button type="submit" loading={saving}><UserPlus /> {mode === 'username' ? 'สร้างบัญชี' : 'ส่งคำเชิญ'}</Button>
+            </DialogFooter>
+          </form>
+        )}
+      </DialogContent>
+    </Dialog>
+  )
+}
+
+/** ตั้งรหัสผ่านชั่วคราวใหม่ให้พนักงาน (บัญชีแบบอีเมลเลือกส่งลิงก์ทางอีเมลแทนได้) */
+function PasswordDialog({ user, onOpenChange }: { user: AdminProfile | null; onOpenChange: (o: boolean) => void }) {
+  const queryClient = useQueryClient()
+  const [password, setPassword] = useState('')
+  const [saving, setSaving] = useState(false)
+  const [sending, setSending] = useState(false)
+  const [done, setDone] = useState(false)
+
+  useEffect(() => {
+    if (user) {
+      setPassword(randomPassword())
+      setDone(false)
+    }
+  }, [user])
+
+  async function submit(e: React.FormEvent) {
+    e.preventDefault()
+    if (!user) return
+    setSaving(true)
+    try {
+      await callAdminUsers({ action: 'set_password', user_id: user.id, password })
+      toast.success('ตั้งรหัสผ่านชั่วคราวแล้ว')
+      queryClient.invalidateQueries({ queryKey: ['admin', 'profiles'] })
+      setDone(true)
+    } catch (err) {
+      toast.error(errorMessage(err))
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  async function sendEmail() {
+    if (!user) return
+    setSending(true)
+    const { error } = await supabase.auth.resetPasswordForEmail(user.email, { redirectTo: `${window.location.origin}/reset-password` })
+    setSending(false)
+    if (error) return toast.error(errorMessage(error))
+    toast.success(`ส่งลิงก์ตั้งรหัสผ่านใหม่ไปที่ ${user.email} แล้ว`)
+    onOpenChange(false)
+  }
+
+  return (
+    <Dialog open={!!user} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-md">
+        {user && (
+          <>
+            <DialogHeader>
+              <DialogTitle>รีเซ็ตรหัสผ่าน</DialogTitle>
+              <DialogDescription>{user.full_name} · {loginName(user)}</DialogDescription>
+            </DialogHeader>
+            {done ? (
+              <div className="space-y-4">
+                <CredentialsCard username={loginName(user)} password={password} />
+                <DialogFooter><Button onClick={() => onOpenChange(false)}>เสร็จสิ้น</Button></DialogFooter>
+              </div>
+            ) : (
+              <form onSubmit={submit} className="space-y-4">
+                <Field label="รหัสผ่านชั่วคราวใหม่" htmlFor="tp-pw" hint="พนักงานจะต้องตั้งรหัสผ่านใหม่เมื่อเข้าสู่ระบบครั้งถัดไป">
+                  <TempPasswordInput id="tp-pw" value={password} onChange={setPassword} />
+                </Field>
+                <DialogFooter className="gap-2 sm:justify-between">
+                  {!user.username ? (
+                    <Button type="button" variant="ghost" onClick={sendEmail} loading={sending}><Mail /> ส่งลิงก์ทางอีเมลแทน</Button>
+                  ) : <span />}
+                  <Button type="submit" loading={saving}><KeyRound /> ตั้งรหัสผ่านชั่วคราว</Button>
+                </DialogFooter>
+              </form>
+            )}
+          </>
+        )}
       </DialogContent>
     </Dialog>
   )
@@ -206,7 +366,7 @@ function EditUserDialog({ user, roles, onOpenChange }: { user: AdminProfile | nu
           <>
             <DialogHeader>
               <DialogTitle>แก้ไขข้อมูลพนักงาน</DialogTitle>
-              <DialogDescription>{user.email}</DialogDescription>
+              <DialogDescription>{loginName(user)}</DialogDescription>
             </DialogHeader>
             <form onSubmit={submit} className="space-y-4">
               <div className="grid gap-4 sm:grid-cols-2">
@@ -266,7 +426,7 @@ export default function AdminUsersPage() {
       if (roleFilter !== SELECT_NONE && roleFilter !== 'admin' && !p.user_roles.some((r) => r.role_id === roleFilter)) return false
       if (statusFilter === 'active' && !p.is_active) return false
       if (statusFilter === 'suspended' && p.is_active) return false
-      return !q || p.full_name.toLowerCase().includes(q) || p.email.toLowerCase().includes(q)
+      return !q || p.full_name.toLowerCase().includes(q) || loginName(p).toLowerCase().includes(q)
     })
   }, [profiles.data, query, roleFilter, statusFilter])
 
@@ -284,15 +444,6 @@ export default function AdminUsersPage() {
     }
   }
 
-  async function sendReset(user: AdminProfile) {
-    const { error } = await supabase.auth.resetPasswordForEmail(user.email, { redirectTo: `${window.location.origin}/reset-password` })
-    if (error) {
-      toast.error(errorMessage(error))
-      throw error
-    }
-    toast.success(`ส่งลิงก์ตั้งรหัสผ่านใหม่ไปที่ ${user.email} แล้ว`)
-  }
-
   return (
     <div className="space-y-6">
       <AdminHeader
@@ -304,7 +455,7 @@ export default function AdminUsersPage() {
       <div className="grid gap-2 sm:grid-cols-[1fr_200px_160px]">
         <div className="relative">
           <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-          <Input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="ค้นหาชื่อหรืออีเมล" className="pl-9" />
+          <Input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="ค้นหาชื่อ ชื่อผู้ใช้ หรืออีเมล" className="pl-9" />
         </div>
         <Select
           value={roleFilter}
@@ -337,10 +488,11 @@ export default function AdminUsersPage() {
                     {p.full_name}
                     {p.id === me?.id && <span className="text-xs font-normal text-muted-foreground">(คุณ)</span>}
                   </p>
-                  <p className="truncate text-xs text-muted-foreground">{p.email}{p.job_title && ` · ${p.job_title}`}</p>
+                  <p className="truncate text-xs text-muted-foreground">{loginName(p)}{p.job_title && ` · ${p.job_title}`}</p>
                 </div>
               </div>
               <div className="flex flex-wrap gap-1 md:w-[34%]">
+                {p.must_change_password && <Badge variant="outline"><KeyRound className="h-3 w-3" /> รอตั้งรหัสผ่านใหม่</Badge>}
                 {p.is_admin && <Badge variant="warning"><ShieldCheck className="h-3 w-3" /> ผู้ดูแล</Badge>}
                 {p.user_roles.map((r) => {
                   const role = roleById.get(r.role_id)
@@ -357,7 +509,7 @@ export default function AdminUsersPage() {
                 </div>
                 <div className="flex gap-0.5">
                   <Button variant="ghost" size="icon" onClick={() => setEditing(p)} title="แก้ไข" aria-label="แก้ไข"><Pencil /></Button>
-                  <Button variant="ghost" size="icon" onClick={() => setResetting(p)} title="ส่งลิงก์ตั้งรหัสผ่านใหม่" aria-label="ส่งลิงก์ตั้งรหัสผ่านใหม่"><KeyRound /></Button>
+                  <Button variant="ghost" size="icon" onClick={() => setResetting(p)} title="รีเซ็ตรหัสผ่าน" aria-label="รีเซ็ตรหัสผ่าน"><KeyRound /></Button>
                   <Button
                     variant="ghost"
                     size="icon"
@@ -376,7 +528,7 @@ export default function AdminUsersPage() {
         </div>
       )}
 
-      <InviteDialog open={inviteOpen} onOpenChange={setInviteOpen} roles={roles} />
+      <AddUserDialog open={inviteOpen} onOpenChange={setInviteOpen} roles={roles} />
       <EditUserDialog user={editing} roles={roles} onOpenChange={(o) => !o && setEditing(null)} />
       <ConfirmDialog
         open={!!toggling}
@@ -391,14 +543,7 @@ export default function AdminUsersPage() {
         destructive={toggling?.is_active}
         onConfirm={() => toggling && toggleActive(toggling)}
       />
-      <ConfirmDialog
-        open={!!resetting}
-        onOpenChange={(o) => !o && setResetting(null)}
-        title="ส่งลิงก์ตั้งรหัสผ่านใหม่?"
-        description={resetting ? `ระบบจะส่งอีเมลไปที่ ${resetting.email}` : undefined}
-        confirmLabel="ส่งลิงก์"
-        onConfirm={() => resetting && sendReset(resetting)}
-      />
+      <PasswordDialog user={resetting} onOpenChange={(o) => !o && setResetting(null)} />
     </div>
   )
 }

@@ -3,7 +3,7 @@ import { toast } from 'sonner'
 import { KeyRound, UserRound } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/providers/auth'
-import { errorMessage, formatDateTime, initials } from '@/lib/utils'
+import { errorMessage, formatDateTime, initials, loginName } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Field } from '@/components/ui/label'
@@ -60,7 +60,7 @@ export default function ProfilePage() {
         </div>
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">{profile.full_name}</h1>
-          <p className="text-sm text-muted-foreground">{profile.email}</p>
+          <p className="text-sm text-muted-foreground">{loginName(profile)}</p>
         </div>
       </div>
 

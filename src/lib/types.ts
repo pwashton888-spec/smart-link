@@ -8,6 +8,9 @@ export interface Profile {
   avatar_url: string | null
   is_active: boolean
   is_admin: boolean
+  /** บัญชีที่ผู้ดูแลสร้างด้วยชื่อผู้ใช้ (null = บัญชีแบบอีเมล) */
+  username: string | null
+  must_change_password: boolean
   last_sign_in_at: string | null
   created_at: string
   updated_at: string

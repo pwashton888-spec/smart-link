@@ -3,6 +3,7 @@
 //   POST { link_ids? }    ตรวจลิงก์ที่เปิดใช้งานอยู่ (ไม่ส่ง = ทุกลิงก์) บันทึกผลลง link_checks
 //                         และแจ้งเตือนผู้ดูแลทุกคนเมื่อพบลิงก์ที่เพิ่งเสีย
 // ผู้เรียกต้องเป็นผู้ดูแลระบบที่ใช้งานอยู่ (ตรวจจาก JWT ของผู้เรียก)
+// หรือเป็นงานตั้งเวลา (pg_cron) ที่ส่ง header x-cron-secret ตรงกับค่าในฐานข้อมูล
 import { createClient } from 'npm:@supabase/supabase-js@2'
 
 const corsHeaders = {
@@ -78,15 +79,24 @@ Deno.serve(async (req) => {
   const caller = createClient(url, anonKey, { global: { headers: { Authorization: authHeader } } })
   const admin = createClient(url, serviceKey, { auth: { persistSession: false } })
 
-  const { data: userData, error: userErr } = await caller.auth.getUser()
-  if (userErr || !userData.user) return json({ error: 'กรุณาเข้าสู่ระบบ' }, 401)
+  // งานตั้งเวลาตรวจลิงก์ทุกเช้า : ไม่มีผู้ใช้ จึงตรวจด้วย secret แทน
+  const cronSecret = req.headers.get('x-cron-secret')
+  let actorId: string | null = null
+  if (cronSecret) {
+    const { data: ok } = await admin.rpc('verify_cron_secret', { p_secret: cronSecret })
+    if (ok !== true) return json({ error: 'cron secret ไม่ถูกต้อง' }, 403)
+  } else {
+    const { data: userData, error: userErr } = await caller.auth.getUser()
+    if (userErr || !userData.user) return json({ error: 'กรุณาเข้าสู่ระบบ' }, 401)
 
-  const { data: me } = await admin
-    .from('profiles')
-    .select('id, is_admin, is_active')
-    .eq('id', userData.user.id)
-    .single()
-  if (!me?.is_admin || !me.is_active) return json({ error: 'ต้องเป็นผู้ดูแลระบบ' }, 403)
+    const { data: me } = await admin
+      .from('profiles')
+      .select('id, is_admin, is_active')
+      .eq('id', userData.user.id)
+      .single()
+    if (!me?.is_admin || !me.is_active) return json({ error: 'ต้องเป็นผู้ดูแลระบบ' }, 403)
+    actorId = me.id
+  }
 
   let body: Record<string, unknown>
   try {
@@ -96,7 +106,7 @@ Deno.serve(async (req) => {
   }
 
   try {
-    if (typeof body.url === 'string') {
+    if (typeof body.url === 'string' && actorId) {
       return json(await checkUrl(body.url.trim()))
     }
 
@@ -112,7 +122,7 @@ Deno.serve(async (req) => {
     const results = await mapLimit(links, CONCURRENCY, (l) => checkUrl(l.url))
     const now = new Date().toISOString()
     const { error: cErr } = await admin.from('link_checks').upsert(
-      links.map((l, i) => ({ link_id: l.id, ...results[i], checked_at: now, checked_by: me.id })),
+      links.map((l, i) => ({ link_id: l.id, ...results[i], checked_at: now, checked_by: actorId })),
     )
     if (cErr) return json({ error: cErr.message }, 400)
 

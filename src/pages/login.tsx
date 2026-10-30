@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { Link, Navigate, useLocation } from 'react-router-dom'
 import { Eye, EyeOff } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
+import { toLoginEmail } from '@/lib/utils'
 import { useAuth } from '@/providers/auth'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -26,11 +27,11 @@ export default function LoginPage() {
     e.preventDefault()
     setError(null)
     setLoading(true)
-    const { error } = await supabase.auth.signInWithPassword({ email: email.trim(), password })
+    const { error } = await supabase.auth.signInWithPassword({ email: toLoginEmail(email), password })
     if (error) {
       setLoading(false)
       if (/banned/i.test(error.message)) setError('บัญชีนี้ถูกระงับการใช้งาน กรุณาติดต่อผู้ดูแลระบบ')
-      else if (/invalid/i.test(error.message)) setError('อีเมลหรือรหัสผ่านไม่ถูกต้อง')
+      else if (/invalid/i.test(error.message)) setError('ชื่อผู้ใช้/อีเมล หรือรหัสผ่านไม่ถูกต้อง')
       else if (/confirm/i.test(error.message)) setError('บัญชียังไม่ได้ยืนยันอีเมล กรุณาตรวจสอบอีเมลเชิญ')
       else setError(error.message)
       return
@@ -40,10 +41,10 @@ export default function LoginPage() {
   }
 
   return (
-    <AuthShell title="เข้าสู่ระบบ" subtitle="ใช้อีเมลและรหัสผ่านที่ได้รับจากผู้ดูแลระบบ">
+    <AuthShell title="เข้าสู่ระบบ" subtitle="ใช้ชื่อผู้ใช้ (หรืออีเมล) และรหัสผ่านที่ได้รับจากผู้ดูแลระบบ">
       <form onSubmit={submit} className="space-y-4">
-        <Field label="อีเมล" htmlFor="email">
-          <Input id="email" type="email" autoComplete="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="name@company.com" required autoFocus />
+        <Field label="ชื่อผู้ใช้หรืออีเมล" htmlFor="email">
+          <Input id="email" autoComplete="username" autoCapitalize="none" spellCheck={false} value={email} onChange={(e) => setEmail(e.target.value)} placeholder="somsri หรือ name@company.com" required autoFocus />
         </Field>
         <Field label="รหัสผ่าน" htmlFor="password">
           <div className="relative">

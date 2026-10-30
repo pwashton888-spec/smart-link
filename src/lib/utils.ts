@@ -29,6 +29,34 @@ export function validateUrl(raw: string): { ok: true; url: string } | { ok: fals
   return { ok: true, url: parsed.toString() }
 }
 
+/** ระบบ Auth ต้องใช้อีเมล : บัญชีแบบชื่อผู้ใช้เก็บเป็น <ชื่อผู้ใช้>@smartlink.local (ต้องตรงกับ Edge Function admin-users) */
+export const USERNAME_DOMAIN = 'smartlink.local'
+
+/** ช่องเข้าสู่ระบบรับได้ทั้งอีเมลและชื่อผู้ใช้ */
+export function toLoginEmail(value: string) {
+  const v = value.trim().toLowerCase()
+  return v.includes('@') ? v : `${v}@${USERNAME_DOMAIN}`
+}
+
+/** ชื่อที่ใช้เข้าสู่ระบบ สำหรับแสดงผล */
+export function loginName(p: { username: string | null; email: string }) {
+  return p.username ?? p.email
+}
+
+/** รหัสผ่านชั่วคราว 10 ตัว มีทั้งตัวอักษรและตัวเลข (ตัดตัวที่สับสนง่าย เช่น 0/O, 1/l) */
+export function randomPassword() {
+  const letters = 'abcdefghjkmnpqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ'
+  const digits = '23456789'
+  const all = letters + digits
+  const pick = (set: string) => set[crypto.getRandomValues(new Uint32Array(1))[0] % set.length]
+  const chars = [pick(letters), pick(digits), ...Array.from({ length: 8 }, () => pick(all))]
+  for (let i = chars.length - 1; i > 0; i--) {
+    const j = crypto.getRandomValues(new Uint32Array(1))[0] % (i + 1)
+    ;[chars[i], chars[j]] = [chars[j], chars[i]]
+  }
+  return chars.join('')
+}
+
 export function hostnameOf(url: string) {
   try {
     return new URL(url).hostname.replace(/^www\./, '')

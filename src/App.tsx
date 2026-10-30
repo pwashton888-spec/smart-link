@@ -7,6 +7,7 @@ import { AppLayout } from '@/components/app-layout'
 import LoginPage from '@/pages/login'
 import ForgotPasswordPage from '@/pages/forgot-password'
 import ResetPasswordPage from '@/pages/reset-password'
+import ChangePasswordPage from '@/pages/change-password'
 import DashboardPage from '@/pages/dashboard'
 import ConfigMissingPage from '@/pages/config-missing'
 import NotFoundPage from '@/pages/not-found'
@@ -34,6 +35,8 @@ function RequireAuth({ children }: { children: React.ReactNode }) {
   const location = useLocation()
   if (loading) return <FullScreenLoader />
   if (!session || !profile) return <Navigate to="/login" replace state={{ from: location.pathname + location.search }} />
+  // รหัสผ่านชั่วคราวจากผู้ดูแล : ต้องตั้งรหัสผ่านใหม่ก่อนใช้งาน
+  if (profile.must_change_password) return <Navigate to="/change-password" replace />
   return <>{children}</>
 }
 
@@ -54,6 +57,7 @@ export default function App() {
         <Route path="/login" element={<LoginPage />} />
         <Route path="/forgot-password" element={<ForgotPasswordPage />} />
         <Route path="/reset-password" element={<ResetPasswordPage />} />
+        <Route path="/change-password" element={<ChangePasswordPage />} />
         <Route
           element={
             <RequireAuth>

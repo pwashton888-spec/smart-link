@@ -1,9 +1,11 @@
 import { useState } from 'react'
-import { useQueryClient } from '@tanstack/react-query'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
-import { DatabaseBackup, Download, FileUp, ShieldAlert } from 'lucide-react'
+import { CalendarClock, DatabaseBackup, Download, FileUp, History, ShieldAlert } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
-import { errorMessage } from '@/lib/utils'
+import { errorMessage, formatDateTime } from '@/lib/utils'
+import { Badge } from '@/components/ui/badge'
+import { Skeleton } from '@/components/ui/skeleton'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { ConfirmDialog } from '@/components/ui/alert-dialog'
@@ -37,6 +39,92 @@ async function fetchAll(table: string, excludePersonal = false) {
   return rows
 }
 
+interface Snapshot {
+  id: number
+  kind: 'auto' | 'manual'
+  link_count: number
+  created_at: string
+}
+
+function downloadJson(data: unknown, date: string) {
+  const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' })
+  const a = document.createElement('a')
+  a.href = URL.createObjectURL(blob)
+  a.download = `smart-link-backup-${date.slice(0, 10)}.json`
+  a.click()
+  URL.revokeObjectURL(a.href)
+}
+
+/** ชุดสำรองที่เก็บในฐานข้อมูล (อัตโนมัติทุกสัปดาห์ + กดสำรองเอง) */
+function SnapshotsCard({ onRestore }: { onRestore: (data: Backup) => void }) {
+  const queryClient = useQueryClient()
+  const [creating, setCreating] = useState(false)
+  const [busyId, setBusyId] = useState<number | null>(null)
+  const snapshots = useQuery({
+    queryKey: ['admin', 'backup-snapshots'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('backup_snapshots')
+        .select('id, kind, link_count, created_at')
+        .order('created_at', { ascending: false })
+      if (error) throw error
+      return data as Snapshot[]
+    },
+  })
+
+  async function createNow() {
+    setCreating(true)
+    const { error } = await supabase.rpc('create_backup_snapshot', { p_kind: 'manual' })
+    setCreating(false)
+    if (error) return toast.error(errorMessage(error))
+    toast.success('สำรองข้อมูลแล้ว')
+    queryClient.invalidateQueries({ queryKey: ['admin', 'backup-snapshots'] })
+  }
+
+  async function load(snap: Snapshot, then: (data: Backup) => void) {
+    setBusyId(snap.id)
+    const { data, error } = await supabase.from('backup_snapshots').select('data').eq('id', snap.id).single()
+    setBusyId(null)
+    if (error) return toast.error(errorMessage(error))
+    then(data.data as Backup)
+  }
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2"><CalendarClock className="h-4 w-4 text-teal" /> สำรองอัตโนมัติในระบบ</CardTitle>
+        <CardDescription>
+          ระบบสำรองให้เองทุกคืนวันอาทิตย์ (เก็บ 8 สัปดาห์ล่าสุด) ชุดสำรองเก็บอยู่ในฐานข้อมูลเดียวกัน จึงควรดาวน์โหลดเก็บไว้นอกระบบเดือนละครั้งด้วย
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-3">
+        <Button variant="outline" onClick={createNow} loading={creating}><History /> สำรองตอนนี้</Button>
+        {snapshots.error ? (
+          <p className="text-sm text-destructive">{errorMessage(snapshots.error)}</p>
+        ) : snapshots.isLoading ? (
+          <Skeleton className="h-24" />
+        ) : !snapshots.data?.length ? (
+          <p className="text-sm text-muted-foreground">ยังไม่มีชุดสำรอง</p>
+        ) : (
+          <div className="divide-y rounded-xl border">
+            {snapshots.data.map((snap) => (
+              <div key={snap.id} className="flex flex-wrap items-center gap-2 px-3 py-2 text-sm">
+                <span className="font-medium">{formatDateTime(snap.created_at)}</span>
+                <Badge variant={snap.kind === 'auto' ? 'teal' : 'secondary'}>{snap.kind === 'auto' ? 'อัตโนมัติ' : 'สำรองเอง'}</Badge>
+                <span className="text-xs text-muted-foreground">{snap.link_count} ลิงก์</span>
+                <span className="ml-auto flex gap-1">
+                  <Button size="sm" variant="ghost" disabled={busyId === snap.id} onClick={() => load(snap, (d) => downloadJson(d, snap.created_at))}><Download /> ดาวน์โหลด</Button>
+                  <Button size="sm" variant="ghost" disabled={busyId === snap.id} onClick={() => load(snap, onRestore)}><FileUp /> กู้คืน</Button>
+                </span>
+              </div>
+            ))}
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  )
+}
+
 export default function AdminBackupPage() {
   const queryClient = useQueryClient()
   const [exporting, setExporting] = useState(false)
@@ -55,12 +143,7 @@ export default function AdminBackupPage() {
         fetchAll('user_roles'),
       ])
       const backup: Backup = { format: FORMAT, version: VERSION, exported_at: new Date().toISOString(), roles, categories, links, link_roles, link_user_permissions, user_roles }
-      const blob = new Blob([JSON.stringify(backup, null, 2)], { type: 'application/json' })
-      const a = document.createElement('a')
-      a.href = URL.createObjectURL(blob)
-      a.download = `smart-link-backup-${new Date().toISOString().slice(0, 10)}.json`
-      a.click()
-      URL.revokeObjectURL(a.href)
+      downloadJson(backup, backup.exported_at)
       toast.success(`ส่งออกแล้ว: ${links.length} ลิงก์, ${categories.length} หมวดหมู่, ${roles.length} ตำแหน่ง`)
     } catch (e) {
       toast.error(errorMessage(e))
@@ -142,6 +225,7 @@ export default function AdminBackupPage() {
           </CardContent>
         </Card>
       </div>
+      <SnapshotsCard onRestore={setPending} />
       <div className="flex gap-3 rounded-2xl border border-amber-500/30 bg-amber-500/5 p-4 text-sm">
         <ShieldAlert className="h-5 w-5 shrink-0 text-amber-600" />
         <p className="text-muted-foreground">

@@ -15,6 +15,10 @@ export default function ForgotPasswordPage() {
 
   async function submit(e: React.FormEvent) {
     e.preventDefault()
+    if (!email.includes('@')) {
+      setError('บัญชีแบบชื่อผู้ใช้ไม่มีอีเมล กรุณาติดต่อผู้ดูแลระบบเพื่อขอรหัสผ่านชั่วคราวใหม่')
+      return
+    }
     setLoading(true)
     setError(null)
     const { error } = await supabase.auth.resetPasswordForEmail(email.trim(), {
@@ -27,7 +31,7 @@ export default function ForgotPasswordPage() {
   }
 
   return (
-    <AuthShell title="ลืมรหัสผ่าน" subtitle="กรอกอีเมลของคุณ ระบบจะส่งลิงก์สำหรับตั้งรหัสผ่านใหม่">
+    <AuthShell title="ลืมรหัสผ่าน" subtitle="กรอกอีเมลของคุณ ระบบจะส่งลิงก์สำหรับตั้งรหัสผ่านใหม่ (บัญชีแบบชื่อผู้ใช้ ให้ติดต่อผู้ดูแลระบบ)">
       {sent ? (
         <div className="space-y-4 rounded-2xl border bg-card p-6 text-center">
           <MailCheck className="mx-auto h-10 w-10 text-teal" />
@@ -37,7 +41,7 @@ export default function ForgotPasswordPage() {
       ) : (
         <form onSubmit={submit} className="space-y-4">
           <Field label="อีเมล" htmlFor="email">
-            <Input id="email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} required autoFocus />
+            <Input id="email" value={email} onChange={(e) => setEmail(e.target.value)} required autoFocus />
           </Field>
           {error && <p className="rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive">{error}</p>}
           <Button type="submit" size="lg" className="w-full" loading={loading}>ส่งลิงก์ตั้งรหัสผ่านใหม่</Button>

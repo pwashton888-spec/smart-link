@@ -7,7 +7,7 @@ import {
 import { useAuth } from '@/providers/auth'
 import { useTheme } from '@/providers/theme'
 import { useMyLinks } from '@/hooks/data'
-import { cn, initials } from '@/lib/utils'
+import { cn, initials, loginName } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
 import { LinkActionsProvider } from './link-actions'
@@ -123,7 +123,7 @@ function UserMenu() {
       <DropdownMenuContent align="end" className="w-60">
         <DropdownMenuLabel>
           <p className="truncate text-sm font-medium text-foreground">{profile.full_name}</p>
-          <p className="truncate">{profile.email}</p>
+          <p className="truncate">{loginName(profile)}</p>
         </DropdownMenuLabel>
         <DropdownMenuSeparator />
         <DropdownMenuItem asChild>
