@@ -13,7 +13,7 @@ import { passwordProblem } from './reset-password'
 
 /** บังคับตั้งรหัสผ่านใหม่หลังเข้าสู่ระบบด้วยรหัสผ่านชั่วคราวที่ผู้ดูแลกำหนด */
 export default function ChangePasswordPage() {
-  const { session, profile, loading, refresh, signOut } = useAuth()
+  const { session, profile, mfa, loading, refresh, signOut } = useAuth()
   const navigate = useNavigate()
   const [pw, setPw] = useState('')
   const [confirm, setConfirm] = useState('')
@@ -28,6 +28,7 @@ export default function ChangePasswordPage() {
     )
   }
   if (!session || !profile) return <Navigate to="/login" replace />
+  if (mfa.needsChallenge) return <Navigate to="/mfa" replace />
   if (!profile.must_change_password) return <Navigate to="/" replace />
 
   async function submit(e: React.FormEvent) {

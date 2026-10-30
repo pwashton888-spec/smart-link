@@ -3,6 +3,7 @@
 //   POST { action: 'create_user', username, password, full_name, job_title?, role_ids?, is_admin? }
 //   POST { action: 'set_password', user_id, password }   ตั้งรหัสผ่านชั่วคราวใหม่ (พนักงานต้องเปลี่ยนเมื่อเข้าสู่ระบบ)
 //   POST { action: 'set_active', user_id, is_active }
+//   POST { action: 'reset_mfa', user_id }                ลบ 2FA ของพนักงาน (เช่น ทำมือถือหาย) ให้ตั้งใหม่ได้
 // ผู้เรียกต้องเป็นผู้ดูแลระบบที่ใช้งานอยู่ (ตรวจจาก JWT ของผู้เรียก)
 import { createClient } from 'npm:@supabase/supabase-js@2'
 
@@ -45,12 +46,10 @@ Deno.serve(async (req) => {
   const { data: userData, error: userErr } = await caller.auth.getUser()
   if (userErr || !userData.user) return json({ error: 'กรุณาเข้าสู่ระบบ' }, 401)
 
-  const { data: me } = await admin
-    .from('profiles')
-    .select('id, is_admin, is_active')
-    .eq('id', userData.user.id)
-    .single()
-  if (!me?.is_admin || !me.is_active) return json({ error: 'ต้องเป็นผู้ดูแลระบบ' }, 403)
+  // ตรวจด้วย is_admin() ของฐานข้อมูลผ่าน token ผู้เรียก (รวมการตรวจ 2FA)
+  const { data: isAdmin } = await caller.rpc('is_admin')
+  if (isAdmin !== true) return json({ error: 'ต้องเป็นผู้ดูแลระบบ (และยืนยัน 2FA แล้ว)' }, 403)
+  const me = { id: userData.user.id }
 
   let body: Record<string, unknown>
   try {
@@ -188,6 +187,24 @@ Deno.serve(async (req) => {
       await admin.from('activity_logs').insert({
         actor_id: me.id,
         action: isActive ? 'activate' : 'suspend',
+        entity_type: 'profiles',
+        entity_id: userId,
+      })
+      return json({ ok: true })
+    }
+
+    if (body.action === 'reset_mfa') {
+      const userId = String(body.user_id ?? '')
+      if (!userId) return json({ error: 'ไม่พบพนักงาน' }, 400)
+      const { data: factors, error: lErr } = await admin.auth.admin.mfa.listFactors({ userId })
+      if (lErr) return json({ error: lErr.message }, 400)
+      for (const f of factors.factors) {
+        const { error: dErr } = await admin.auth.admin.mfa.deleteFactor({ id: f.id, userId })
+        if (dErr) return json({ error: dErr.message }, 400)
+      }
+      await admin.from('activity_logs').insert({
+        actor_id: me.id,
+        action: 'reset_mfa',
         entity_type: 'profiles',
         entity_id: userId,
       })

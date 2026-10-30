@@ -89,13 +89,10 @@ Deno.serve(async (req) => {
     const { data: userData, error: userErr } = await caller.auth.getUser()
     if (userErr || !userData.user) return json({ error: 'กรุณาเข้าสู่ระบบ' }, 401)
 
-    const { data: me } = await admin
-      .from('profiles')
-      .select('id, is_admin, is_active')
-      .eq('id', userData.user.id)
-      .single()
-    if (!me?.is_admin || !me.is_active) return json({ error: 'ต้องเป็นผู้ดูแลระบบ' }, 403)
-    actorId = me.id
+    // ตรวจด้วย is_admin() ของฐานข้อมูลผ่าน token ผู้เรียก (รวมการตรวจ 2FA)
+    const { data: isAdmin } = await caller.rpc('is_admin')
+    if (isAdmin !== true) return json({ error: 'ต้องเป็นผู้ดูแลระบบ (และยืนยัน 2FA แล้ว)' }, 403)
+    actorId = userData.user.id
   }
 
   let body: Record<string, unknown>

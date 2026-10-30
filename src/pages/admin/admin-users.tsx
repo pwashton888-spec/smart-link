@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
-import { Ban, CheckCircle2, Copy, KeyRound, Mail, Pencil, Search, ShieldCheck, UserPlus, UserRound, Users, Wand2 } from 'lucide-react'
+import { Ban, CheckCircle2, Copy, KeyRound, Mail, Pencil, Search, ShieldCheck, ShieldOff, Smartphone, UserPlus, UserRound, Users, Wand2 } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/providers/auth'
 import { useRoles } from '@/hooks/data'
@@ -416,6 +416,15 @@ export default function AdminUsersPage() {
   const [editing, setEditing] = useState<AdminProfile | null>(null)
   const [toggling, setToggling] = useState<AdminProfile | null>(null)
   const [resetting, setResetting] = useState<AdminProfile | null>(null)
+  const [mfaResetting, setMfaResetting] = useState<AdminProfile | null>(null)
+  const mfaUsers = useQuery({
+    queryKey: ['admin', 'mfa-users'],
+    queryFn: async () => {
+      const { data, error } = await supabase.rpc('admin_mfa_users')
+      if (error) throw error
+      return new Set(data as string[])
+    },
+  })
 
   const roleById = useMemo(() => new Map(roles.map((r) => [r.id, r])), [roles])
 
@@ -438,6 +447,17 @@ export default function AdminUsersPage() {
       await callAdminUsers({ action: 'set_active', user_id: user.id, is_active: !user.is_active })
       toast.success(user.is_active ? `ระงับบัญชี ${user.full_name} แล้ว` : `เปิดใช้งานบัญชี ${user.full_name} แล้ว`)
       queryClient.invalidateQueries({ queryKey: ['admin', 'profiles'] })
+    } catch (err) {
+      toast.error(errorMessage(err))
+      throw err
+    }
+  }
+
+  async function resetMfa(user: AdminProfile) {
+    try {
+      await callAdminUsers({ action: 'reset_mfa', user_id: user.id })
+      toast.success(`รีเซ็ต 2FA ของ ${user.full_name} แล้ว`)
+      queryClient.invalidateQueries({ queryKey: ['admin', 'mfa-users'] })
     } catch (err) {
       toast.error(errorMessage(err))
       throw err
@@ -494,6 +514,7 @@ export default function AdminUsersPage() {
               <div className="flex flex-wrap gap-1 md:w-[34%]">
                 {p.must_change_password && <Badge variant="outline"><KeyRound className="h-3 w-3" /> รอตั้งรหัสผ่านใหม่</Badge>}
                 {p.is_admin && <Badge variant="warning"><ShieldCheck className="h-3 w-3" /> ผู้ดูแล</Badge>}
+                {mfaUsers.data?.has(p.id) && <Badge variant="teal"><Smartphone className="h-3 w-3" /> 2FA</Badge>}
                 {p.user_roles.map((r) => {
                   const role = roleById.get(r.role_id)
                   return role ? <RoleBadge key={r.role_id} name={role.name} color={role.color} /> : null
@@ -510,6 +531,9 @@ export default function AdminUsersPage() {
                 <div className="flex gap-0.5">
                   <Button variant="ghost" size="icon" onClick={() => setEditing(p)} title="แก้ไข" aria-label="แก้ไข"><Pencil /></Button>
                   <Button variant="ghost" size="icon" onClick={() => setResetting(p)} title="รีเซ็ตรหัสผ่าน" aria-label="รีเซ็ตรหัสผ่าน"><KeyRound /></Button>
+                  {mfaUsers.data?.has(p.id) && p.id !== me?.id && (
+                    <Button variant="ghost" size="icon" onClick={() => setMfaResetting(p)} title="รีเซ็ต 2FA" aria-label="รีเซ็ต 2FA"><ShieldOff /></Button>
+                  )}
                   <Button
                     variant="ghost"
                     size="icon"
@@ -544,6 +568,15 @@ export default function AdminUsersPage() {
         onConfirm={() => toggling && toggleActive(toggling)}
       />
       <PasswordDialog user={resetting} onOpenChange={(o) => !o && setResetting(null)} />
+      <ConfirmDialog
+        open={!!mfaResetting}
+        onOpenChange={(o) => !o && setMfaResetting(null)}
+        title="รีเซ็ต 2FA?"
+        description={`ใช้เมื่อ ${mfaResetting?.full_name} ทำมือถือหายหรือเปลี่ยนเครื่อง ครั้งหน้าเข้าสู่ระบบด้วยรหัสผ่านอย่างเดียว แล้วตั้ง 2FA ใหม่ได้ (ผู้ดูแลจะถูกบังคับให้ตั้งใหม่ทันที)`}
+        confirmLabel="รีเซ็ต 2FA"
+        destructive
+        onConfirm={() => mfaResetting && resetMfa(mfaResetting)}
+      />
     </div>
   )
 }
