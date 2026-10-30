@@ -754,3 +754,10 @@ revoke execute on function public.create_backup_snapshot(text) from public, anon
 
 select cron.schedule('smartlink-daily-link-check', '0 1 * * *', $$select private.call_edge_function('check-links')$$);
 select cron.schedule('smartlink-weekly-backup', '0 18 * * 0', $$select public.create_backup_snapshot('auto')$$);
+
+-- ล้างการแจ้งเตือนที่อ่านแล้วและเก่ากว่า 90 วัน (ทุกวันที่ 1 ของเดือน)
+select cron.schedule(
+  'smartlink-cleanup-notifications',
+  '0 19 1 * *',
+  $$delete from public.notifications where is_read and created_at < now() - interval '90 days'$$
+);
