@@ -11,6 +11,8 @@
 - **Popup รายละเอียดลิงก์** + Quick Launch (เปิดทันทีโดยไม่ผ่าน Popup) ไม่ใช้ iframe
 - **พื้นที่ส่วนตัว**: ปักหมุด/จัดเรียง Drag & Drop, ลิงก์ส่วนตัว (เพิ่ม/แก้/ลบ/จัดเรียง), ซ่อนลิงก์จาก Dashboard, ประวัติล่าสุด
 - **Admin Panel**: จัดการลิงก์ (สิทธิ์หลายตำแหน่ง + รายบุคคล, ไอคอน/อัปโหลด, แท็ก, กลุ่ม, แนะนำ, เปิด/ปิด, จัดลำดับ, ทดสอบลิงก์), พนักงาน (เชิญ, หลายตำแหน่ง, สิทธิ์ผู้ดูแล, ระงับ, ส่งลิงก์รีเซ็ต, ประวัติเข้าสู่ระบบ), หมวดหมู่, ตำแหน่งงาน, ประวัติการใช้งาน, สำรอง/กู้คืนข้อมูล (JSON)
+- **การแจ้งเตือน** (กระดิ่งมุมขวาบน, Realtime): ลิงก์ส่วนกลางใหม่ → พนักงานทุกคน / ตรวจพบลิงก์เสีย → ผู้ดูแลทุกคน
+- **ตรวจสอบลิงก์ทั้งหมด** จากฝั่งเซิร์ฟเวอร์ (Edge Function `check-links`) แสดงป้ายลิงก์เสีย และกรองดูเฉพาะลิงก์เสียได้
 - Dark/Light mode, Responsive, Loading skeleton, Empty/Error states, ภาษาไทยทั้งระบบ
 
 ## ความปลอดภัย
@@ -26,7 +28,7 @@
 
 ## โครงสร้างฐานข้อมูล
 
-`profiles`, `roles`, `user_roles` (M:N พนักงาน-ตำแหน่ง), `links`, `link_roles` (M:N ลิงก์-ตำแหน่ง), `link_user_permissions` (ลิงก์-พนักงาน), `categories`, `favorites`, `personal_link_preferences` (ซ่อน/ล่าสุด/จำนวนครั้ง), `activity_logs`
+`profiles`, `roles`, `user_roles` (M:N พนักงาน-ตำแหน่ง), `links`, `link_roles` (M:N ลิงก์-ตำแหน่ง), `link_user_permissions` (ลิงก์-พนักงาน), `categories`, `favorites`, `personal_link_preferences` (ซ่อน/ล่าสุด/จำนวนครั้ง), `activity_logs`, `notifications`, `link_checks` (ผลตรวจลิงก์ล่าสุด)
 
 `links.visibility`: `global` (ส่วนกลาง) / `restricted` (ตามตำแหน่ง และ/หรือ เฉพาะบุคคล) / `personal` (ลิงก์ส่วนตัวของเจ้าของ)
 
@@ -38,7 +40,7 @@
 2. รัน migration (เลือกวิธีใดวิธีหนึ่ง)
    - Supabase CLI: `npx supabase link --project-ref <ref>` แล้ว `npx supabase db push`
    - หรือคัดลอกไฟล์ใน `supabase/migrations/` ไปรันใน SQL Editor ตามลำดับ
-3. Deploy Edge Function สำหรับเชิญพนักงาน/ระงับบัญชี: `npx supabase functions deploy admin-users`
+3. Deploy Edge Functions: `npx supabase functions deploy admin-users` และ `npx supabase functions deploy check-links`
 4. ตั้งค่า Auth ใน Dashboard
    - Authentication > Providers > Email: **ปิด "Allow new users to sign up"**
    - Authentication > URL Configuration: ตั้ง Site URL และเพิ่ม `https://<โดเมน>/reset-password` ใน Redirect URLs

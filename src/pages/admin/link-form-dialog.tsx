@@ -4,7 +4,7 @@ import { toast } from 'sonner'
 import { CheckCircle2, Globe, ImageUp, Loader2, Lock, Search, Wand2, XCircle } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import type { Category, LinkRow, Role } from '@/lib/types'
-import type { AdminProfile } from '@/hooks/admin'
+import { callCheckLinks, type AdminProfile } from '@/hooks/admin'
 import { cn, errorMessage, faviconFor, validateUrl } from '@/lib/utils'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
@@ -75,6 +75,7 @@ export function LinkFormDialog({
   const [saving, setSaving] = useState(false)
   const [uploading, setUploading] = useState(false)
   const [reach, setReach] = useState<Reach>('idle')
+  const [reachDetail, setReachDetail] = useState('')
   const [userQuery, setUserQuery] = useState('')
 
   useEffect(() => {
@@ -129,6 +130,16 @@ export function LinkFormDialog({
       return
     }
     setReach('checking')
+    setReachDetail('')
+    try {
+      // ตรวจจากเซิร์ฟเวอร์ (เห็นรหัสตอบกลับจริง เช่น 404)
+      const res = await callCheckLinks({ url: checked.url })
+      setReach(res.status === 'ok' ? 'ok' : 'fail')
+      setReachDetail(res.detail)
+      return
+    } catch {
+      // ยังไม่ได้ deploy check-links : ตรวจจากเบราว์เซอร์แทน
+    }
     try {
       const ctrl = new AbortController()
       const t = setTimeout(() => ctrl.abort(), 8000)
@@ -268,8 +279,8 @@ export function LinkFormDialog({
                 ทดสอบลิงก์
               </Button>
             </div>
-            {reach === 'ok' && <p className="text-xs text-emerald-600">เซิร์ฟเวอร์ตอบกลับ ลิงก์น่าจะเปิดได้</p>}
-            {reach === 'fail' && <p className="text-xs text-destructive">เชื่อมต่อไม่ได้ อาจเป็นเว็บภายในที่ต้องใช้ VPN หรือ URL ไม่ถูกต้อง</p>}
+            {reach === 'ok' && <p className="text-xs text-emerald-600">เซิร์ฟเวอร์ตอบกลับ ลิงก์น่าจะเปิดได้{reachDetail && ` (${reachDetail})`}</p>}
+            {reach === 'fail' && <p className="text-xs text-destructive">{reachDetail || 'เชื่อมต่อไม่ได้ อาจเป็นเว็บภายในที่ต้องใช้ VPN หรือ URL ไม่ถูกต้อง'}</p>}
           </Field>
 
           <Field label="คำอธิบาย" htmlFor="lf-desc">

@@ -12,6 +12,7 @@ import { Button } from '@/components/ui/button'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
 import { LinkActionsProvider } from './link-actions'
 import { SearchDialog } from './search-dialog'
+import { NotificationBell } from './notification-bell'
 import { CategoryIcon } from './icons'
 
 function Brand() {
@@ -193,6 +194,7 @@ export function AppLayout() {
                 <Button variant="ghost" size="icon" onClick={toggle} aria-label="สลับธีม" title={theme === 'dark' ? 'โหมดสว่าง' : 'โหมดมืด'}>
                   {theme === 'dark' ? <Sun className="h-5 w-5" /> : <Moon className="h-5 w-5" />}
                 </Button>
+                <NotificationBell />
                 <UserMenu />
               </div>
             </div>
