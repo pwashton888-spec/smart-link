@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { toast } from 'sonner'
-import { KeyRound, UserRound } from 'lucide-react'
+import { KeyRound, ShieldCheck, UserRound } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/providers/auth'
 import { errorMessage, formatDateTime, initials, loginName } from '@/lib/utils'
@@ -9,7 +9,74 @@ import { Input } from '@/components/ui/input'
 import { Field } from '@/components/ui/label'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge, RoleBadge } from '@/components/ui/badge'
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { TotpEnroll } from '@/components/totp'
 import { passwordProblem } from './reset-password'
+
+function MfaCard() {
+  const { mfa, refresh } = useAuth()
+  const [enrolling, setEnrolling] = useState(false)
+  const [removing, setRemoving] = useState(false)
+
+  async function disable() {
+    setRemoving(true)
+    const { data: list } = await supabase.auth.mfa.listFactors()
+    for (const f of list?.all ?? []) {
+      const { error } = await supabase.auth.mfa.unenroll({ factorId: f.id })
+      if (error) {
+        setRemoving(false)
+        return toast.error(errorMessage(error))
+      }
+    }
+    // ขอ token ใหม่ให้ระดับการยืนยันตรงกับสถานะล่าสุด
+    await supabase.auth.refreshSession()
+    await refresh()
+    setRemoving(false)
+    toast.success('ปิด 2FA แล้ว')
+  }
+
+  return (
+    <Card id="mfa">
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2"><ShieldCheck className="h-4 w-4" /> ยืนยันตัวตน 2 ชั้น (2FA)</CardTitle>
+        <CardDescription>เข้าสู่ระบบด้วยรหัสผ่าน + รหัส 6 หลักจากแอปในมือถือ คนที่ได้รหัสผ่านไปก็เข้าบัญชีไม่ได้</CardDescription>
+      </CardHeader>
+      <CardContent className="flex flex-wrap items-center gap-3">
+        {mfa.enrolled ? (
+          <>
+            <Badge variant="teal">เปิดใช้อยู่</Badge>
+            {mfa.required ? (
+              <span className="text-sm text-muted-foreground">บัญชีของคุณต้องใช้ 2FA ตามนโยบายองค์กร</span>
+            ) : (
+              <Button variant="outline" loading={removing} onClick={disable}>ปิด 2FA</Button>
+            )}
+          </>
+        ) : (
+          <>
+            <Badge variant="outline">ยังไม่เปิด</Badge>
+            <Button onClick={() => setEnrolling(true)}>เปิดใช้ 2FA</Button>
+          </>
+        )}
+      </CardContent>
+      <Dialog open={enrolling} onOpenChange={setEnrolling}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>เปิดใช้ 2FA</DialogTitle>
+            <DialogDescription>หลังเปิดแล้ว ทุกครั้งที่เข้าสู่ระบบต้องกรอกรหัส 6 หลักจากแอป</DialogDescription>
+          </DialogHeader>
+          {enrolling && (
+            <TotpEnroll
+              onDone={async () => {
+                setEnrolling(false)
+                await refresh()
+              }}
+            />
+          )}
+        </DialogContent>
+      </Dialog>
+    </Card>
+  )
+}
 
 export default function ProfilePage() {
   const { profile, roles, refresh } = useAuth()
@@ -96,6 +163,8 @@ export default function ProfilePage() {
           </form>
         </CardContent>
       </Card>
+
+      <MfaCard />
 
       <Card id="password">
         <CardHeader>

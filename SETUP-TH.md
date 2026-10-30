@@ -84,3 +84,14 @@ anon key เป็น key สาธารณะที่ใช้ฝั่งเ
 - สำรองข้อมูลอัตโนมัติทุกคืนวันอาทิตย์ ดู ดาวน์โหลด หรือกู้คืนได้ที่หน้า **สำรอง/กู้คืนข้อมูล** (เก็บ 8 สัปดาห์ล่าสุด)
 - ล้างการแจ้งเตือนที่อ่านแล้วเกิน 90 วันทุกต้นเดือน
 - ดูสถานะงานอัตโนมัติได้ที่ Supabase > **Integrations > Cron**
+
+## อัปเดตยืนยันตัวตน 2 ชั้น (2FA) (สำหรับผู้ที่ติดตั้งก่อน 31 ต.ค. 2569)
+1. **SQL Editor** > New query > วางไฟล์ [`20261031000001_mfa.sql`](supabase/migrations/20261031000001_mfa.sql) แล้ว Run
+2. อัปเดตโค้ด Edge Function ทั้ง 2 ตัวอีกครั้ง ([`admin-users`](supabase/functions/admin-users/index.ts) และ [`check-links`](supabase/functions/check-links/index.ts)) แล้วกด **Deploy updates**
+
+**ใช้งาน**
+- ผู้ดูแลระบบต้องตั้ง 2FA ก่อนใช้งาน: เข้าสู่ระบบแล้วสแกน QR ด้วยแอป Google Authenticator หรือ Microsoft Authenticator แล้วกรอกรหัส 6 หลัก
+- พนักงานเปิด 2FA เองได้ที่หน้า **โปรไฟล์**
+- พนักงานทำมือถือหาย: **จัดการพนักงาน** > ปุ่มรูปโล่ (รีเซ็ต 2FA)
+- เปลี่ยนนโยบาย: `update private.settings set value = 'everyone' where key = 'mfa_policy';` (`admins` = บังคับผู้ดูแล, `everyone` = บังคับทุกคน, `none` = ไม่บังคับ)
+- ผู้ดูแลคนเดียวทำมือถือหาย: SQL Editor รัน `delete from auth.mfa_factors where user_id = (select id from public.profiles where email = '<อีเมลผู้ดูแล>');`

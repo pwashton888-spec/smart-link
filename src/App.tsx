@@ -8,6 +8,7 @@ import LoginPage from '@/pages/login'
 import ForgotPasswordPage from '@/pages/forgot-password'
 import ResetPasswordPage from '@/pages/reset-password'
 import ChangePasswordPage from '@/pages/change-password'
+import MfaPage from '@/pages/mfa'
 import DashboardPage from '@/pages/dashboard'
 import ConfigMissingPage from '@/pages/config-missing'
 import NotFoundPage from '@/pages/not-found'
@@ -31,12 +32,16 @@ function FullScreenLoader() {
 }
 
 function RequireAuth({ children }: { children: React.ReactNode }) {
-  const { session, profile, loading } = useAuth()
+  const { session, profile, mfa, loading } = useAuth()
   const location = useLocation()
   if (loading) return <FullScreenLoader />
   if (!session || !profile) return <Navigate to="/login" replace state={{ from: location.pathname + location.search }} />
+  // เปิด 2FA แล้ว : กรอกรหัส 6 หลักก่อน (ฐานข้อมูลไม่ส่งข้อมูลให้จนกว่าจะยืนยัน)
+  if (mfa.needsChallenge) return <Navigate to="/mfa" replace />
   // รหัสผ่านชั่วคราวจากผู้ดูแล : ต้องตั้งรหัสผ่านใหม่ก่อนใช้งาน
   if (profile.must_change_password) return <Navigate to="/change-password" replace />
+  // นโยบายบังคับ 2FA (เช่น ผู้ดูแล) : ต้องตั้งค่าก่อนใช้งาน
+  if (mfa.required && !mfa.enrolled) return <Navigate to="/mfa" replace />
   return <>{children}</>
 }
 
@@ -58,6 +63,7 @@ export default function App() {
         <Route path="/forgot-password" element={<ForgotPasswordPage />} />
         <Route path="/reset-password" element={<ResetPasswordPage />} />
         <Route path="/change-password" element={<ChangePasswordPage />} />
+        <Route path="/mfa" element={<MfaPage />} />
         <Route
           element={
             <RequireAuth>
