@@ -1,9 +1,9 @@
 import { useMemo, useState } from 'react'
-import { useSearchParams } from 'react-router-dom'
+import { Link, useSearchParams } from 'react-router-dom'
 import { Search, SearchX } from 'lucide-react'
 import { searchLinks, useMyLinks } from '@/hooks/data'
 import { useAuth } from '@/providers/auth'
-import type { AccessibleLink } from '@/lib/types'
+import type { AccessibleLink, Category } from '@/lib/types'
 import { Input } from '@/components/ui/input'
 import { Select, SELECT_NONE } from '@/components/ui/select'
 import { LinkList, LinkListSkeleton } from '@/components/link-card'
@@ -43,6 +43,21 @@ export default function AllLinksPage() {
     if (sort === 'recent') sorted.sort((a, b) => (b.lastOpenedAt ?? '').localeCompare(a.lastOpenedAt ?? ''))
     return sorted
   }, [data, category, roleId, query, sort])
+
+  // ยังไม่ได้เลือกหมวด และไม่ได้ค้นหา : แยกลิงก์เป็นส่วน ๆ ตามหมวดหมู่
+  const categoryGroups = useMemo(() => {
+    if (category || query.trim()) return null
+    const order = new Map(categories.map((c, i) => [c.id, i]))
+    const m = new Map<string, { category: Category | null; links: AccessibleLink[] }>()
+    for (const l of results) {
+      const key = l.category?.id ?? ''
+      const g = m.get(key) ?? { category: l.category, links: [] }
+      g.links.push(l)
+      m.set(key, g)
+    }
+    const rank = (c: Category | null) => (c ? order.get(c.id) ?? Number.MAX_SAFE_INTEGER - 1 : Number.MAX_SAFE_INTEGER)
+    return [...m.values()].sort((a, b) => rank(a.category) - rank(b.category))
+  }, [results, category, categories, query])
 
   // จัดกลุ่มลิงก์ที่เกี่ยวข้องกัน (group_name) เมื่อไม่ได้ค้นหา
   const groups = useMemo(() => {
@@ -103,6 +118,31 @@ export default function AllLinksPage() {
         <LinkListSkeleton view={view} />
       ) : !results.length ? (
         <EmptyState icon={SearchX} title="ไม่พบลิงก์" description="ลองเปลี่ยนคำค้นหาหรือตัวกรอง" />
+      ) : categoryGroups ? (
+        <div className="space-y-8">
+          <p className="text-sm text-muted-foreground">พบ {results.length} ลิงก์ ใน {categoryGroups.length} หมวดหมู่</p>
+          {categoryGroups.map(({ category: c, links }) => (
+            <section key={c?.id ?? 'none'} className="space-y-3">
+              <div className="flex items-center gap-2">
+                <span
+                  className="flex h-8 w-8 items-center justify-center rounded-xl"
+                  style={{ backgroundColor: `${c?.color ?? '#64748b'}1a`, color: c?.color ?? '#64748b' }}
+                >
+                  <CategoryIcon name={c?.icon ?? 'Folder'} />
+                </span>
+                <h2 className="min-w-0 flex-1 truncate text-sm font-semibold">
+                  {c?.name ?? 'ไม่ระบุหมวดหมู่'} <span className="font-normal text-muted-foreground">({links.length})</span>
+                </h2>
+                {c && (
+                  <Link to={`/links?category=${c.slug}`} className="shrink-0 text-xs font-medium text-teal hover:underline">
+                    ดูเฉพาะหมวดนี้
+                  </Link>
+                )}
+              </div>
+              <LinkList links={links} view={view} />
+            </section>
+          ))}
+        </div>
       ) : groups ? (
         <div className="space-y-8">
           {groups.map(([name, links]) => (
