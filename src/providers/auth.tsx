@@ -145,8 +145,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         queryClient.invalidateQueries({ queryKey: ['links'] }),
       )
       .subscribe()
+    // ชุดลิงก์แยก channel : ถ้ายังไม่ได้รัน SQL ชุดลิงก์ จะไม่กระทบการอัปเดตสิทธิ์ด้านบน
+    const collectionsChannel = supabase
+      .channel(`collections-${userId}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'collections' }, () =>
+        queryClient.invalidateQueries({ queryKey: ['collections'] }),
+      )
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'collection_items' }, () =>
+        queryClient.invalidateQueries({ queryKey: ['collections'] }),
+      )
+      .subscribe()
     return () => {
       supabase.removeChannel(channel)
+      supabase.removeChannel(collectionsChannel)
     }
   }, [userId, refresh, queryClient])
 

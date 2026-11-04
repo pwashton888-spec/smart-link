@@ -112,3 +112,38 @@ export function slugify(value: string) {
     .replace(/[^a-z0-9]+/g, '-')
     .replace(/^-+|-+$/g, '')
 }
+
+const TRACKING_PARAMS = /^(utm_[a-z]+|fbclid|gclid|dclid|msclkid|mc_eid|mc_cid|igshid|ref_src)$/i
+
+/**
+ * ทำ URL ให้อยู่ในรูปมาตรฐานเพื่อตรวจลิงก์ซ้ำ
+ * ไม่สนใจ http/https, www., ตัวพิมพ์เล็กใหญ่ของโดเมน, พอร์ตมาตรฐาน, "/" ท้าย URL, #ส่วนท้าย (ยกเว้น #/...)
+ * พารามิเตอร์ติดตาม (utm_*, fbclid ...) และลำดับของพารามิเตอร์
+ */
+export function normalizeUrl(raw: string): string | null {
+  const checked = validateUrl(raw)
+  if (!checked.ok) return null
+  const u = new URL(checked.url)
+  const host = u.hostname.toLowerCase().replace(/^www\./, '')
+  const port = u.port && u.port !== '80' && u.port !== '443' ? `:${u.port}` : ''
+  let path = u.pathname.replace(/\/+$/, '').replace(/\/index\.(html?|php|aspx?)$/i, '')
+  try {
+    path = decodeURI(path)
+  } catch {
+    // ปล่อยตามเดิมถ้า decode ไม่ได้
+  }
+  const params = [...u.searchParams.entries()]
+    .filter(([k]) => !TRACKING_PARAMS.test(k))
+    .sort(([a, av], [b, bv]) => a.localeCompare(b) || av.localeCompare(bv))
+  const query = params.length ? `?${new URLSearchParams(params).toString()}` : ''
+  // เก็บ # ไว้เฉพาะเว็บที่ใช้ # เป็นหน้าย่อย เช่น #/report
+  const hash = /^#!?\//.test(u.hash) ? u.hash : ''
+  return `${host}${port}${path}${query}${hash}`
+}
+
+/** หาลิงก์ที่ URL ตรงกัน (หลังทำให้เป็นรูปมาตรฐาน) */
+export function findDuplicateLinks<T extends { id: string; url: string }>(url: string, links: T[], excludeId?: string): T[] {
+  const key = normalizeUrl(url)
+  if (!key) return []
+  return links.filter((l) => l.id !== excludeId && normalizeUrl(l.url) === key)
+}

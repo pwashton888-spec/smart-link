@@ -5,6 +5,7 @@ import { useDeletePersonalLink, useMyLinks } from '@/hooks/data'
 import { ConfirmDialog } from '@/components/ui/alert-dialog'
 import { LinkDetailDialog } from './link-detail-dialog'
 import { PersonalLinkDialog } from './personal-link-dialog'
+import { LinkHistoryDialog } from './link-history-dialog'
 
 interface LinkActions {
   showDetail: (link: AccessibleLink) => void
@@ -12,6 +13,8 @@ interface LinkActions {
   addPersonal: (categoryId?: string) => void
   editPersonal: (link: AccessibleLink) => void
   deletePersonal: (link: AccessibleLink) => void
+  /** ประวัติเวอร์ชันของลิงก์ส่วนตัว */
+  showHistory: (link: AccessibleLink) => void
 }
 
 const Ctx = createContext<LinkActions | null>(null)
@@ -31,10 +34,12 @@ export function LinkActionsProvider({ children }: { children: React.ReactNode })
   const [detailId, setDetailId] = useState<string | null>(null)
   const [editing, setEditing] = useState<AccessibleLink | null | undefined>(undefined)
   const [deleting, setDeleting] = useState<AccessibleLink | null>(null)
+  const [historyId, setHistoryId] = useState<string | null>(null)
   const [defaultCategoryId, setDefaultCategoryId] = useState<string | undefined>(undefined)
   const del = useDeletePersonalLink()
 
   const detail = useMemo(() => data?.find((l) => l.id === detailId) ?? null, [data, detailId])
+  const historyLink = useMemo(() => data?.find((l) => l.id === historyId) ?? null, [data, historyId])
 
   const actions = useMemo<LinkActions>(
     () => ({
@@ -51,6 +56,10 @@ export function LinkActionsProvider({ children }: { children: React.ReactNode })
         setDetailId(null)
         setDeleting(l)
       },
+      showHistory: (l) => {
+        setDetailId(null)
+        setHistoryId(l.id)
+      },
     }),
     [],
   )
@@ -65,6 +74,7 @@ export function LinkActionsProvider({ children }: { children: React.ReactNode })
         defaultCategoryId={defaultCategoryId}
         onOpenChange={(o) => !o && setEditing(undefined)}
       />
+      <LinkHistoryDialog link={historyLink} onOpenChange={(o) => !o && setHistoryId(null)} />
       <ConfirmDialog
         open={!!deleting}
         onOpenChange={(o) => !o && setDeleting(null)}

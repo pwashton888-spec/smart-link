@@ -1,8 +1,9 @@
 import { useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { Clock, Flame, Globe, Layers, Plus, Search, SearchX, Sparkles, Star, X } from 'lucide-react'
+import { Clock, Flame, Globe, Layers, Library, Plus, Search, SearchX, Sparkles, Star, X } from 'lucide-react'
 import { useAuth } from '@/providers/auth'
 import { searchLinks, useMyLinks } from '@/hooks/data'
+import { collectionLinks, useMyCollections } from '@/hooks/collections'
 import type { AccessibleLink } from '@/lib/types'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
@@ -65,6 +66,7 @@ export default function DashboardPage() {
   const [view, setView] = useViewMode()
   const [query, setQuery] = useState('')
   const [filter, setFilter] = useState<Filter>('all')
+  const { data: collections } = useMyCollections()
 
   const visible = useMemo(() => (data ?? []).filter((l) => !l.isHidden), [data])
 
@@ -91,6 +93,8 @@ export default function DashboardPage() {
   const global = visible.filter((l) => l.visibility === 'global')
   const personal = visible.filter((l) => l.visibility === 'personal')
   const direct = visible.filter((l) => l.grantedToMe && !l.matchedRoles.length)
+
+  const linkById = useMemo(() => new Map((data ?? []).map((l) => [l.id, l])), [data])
 
   const categoryCounts = useMemo(() => {
     const m = new Map<string, number>()
@@ -224,6 +228,38 @@ export default function DashboardPage() {
             <div className="flex items-center gap-3 rounded-2xl border border-dashed bg-card/40 px-4 py-3 text-sm text-muted-foreground">
               <Star className="h-4 w-4 shrink-0 text-amber-500" /> กดรูปดาวบนการ์ดลิงก์เพื่อปักหมุดเว็บไซต์ที่ใช้บ่อยไว้ด้านบนสุด
             </div>
+          )}
+          {collections.length > 0 && (
+            <section className="space-y-3">
+              <div className="flex items-center justify-between gap-2">
+                <h2 className="flex items-center gap-2 text-base font-semibold">
+                  <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-teal/10 text-teal"><Library className="h-4 w-4" /></span>
+                  ชุดลิงก์
+                  <span className="text-sm font-normal text-muted-foreground">({collections.length})</span>
+                </h2>
+                <Link to="/collections" className="text-sm text-teal hover:underline">ดูทั้งหมด</Link>
+              </div>
+              <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
+                {collections.slice(0, 8).map((c) => {
+                  const items = collectionLinks(c, linkById)
+                  return (
+                    <Link
+                      key={c.id}
+                      to={`/collections#collection-${c.id}`}
+                      className="flex items-center gap-3 rounded-2xl border bg-card/80 p-4 shadow-sm transition hover:-translate-y-0.5 hover:shadow-lift"
+                    >
+                      <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl" style={{ backgroundColor: `${c.color}1a`, color: c.color }}>
+                        <CategoryIcon name={c.icon} className="h-5 w-5" />
+                      </span>
+                      <div className="min-w-0">
+                        <p className="truncate text-sm font-medium">{c.name}</p>
+                        <p className="text-xs text-muted-foreground">{items.length} ลิงก์{c.owner_id ? ' · ของฉัน' : ''}</p>
+                      </div>
+                    </Link>
+                  )
+                })}
+              </div>
+            </section>
           )}
           <Section title="ใช้งานล่าสุด" icon={Clock} links={recent} view={view} limit={view === 'grid' ? 5 : 6} />
           <Section title="ลิงก์แนะนำ" icon={Sparkles} color="#14a3a0" links={featured} view={view} />

@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { NavLink, Outlet, useLocation } from 'react-router-dom'
 import {
   FolderTree, History, Home, KeyRound, Layers, Link2, LogOut, Menu, Moon, Search, Shield, Sun, UserRound, Users, X,
-  BriefcaseBusiness, DatabaseBackup, Sparkles,
+  BriefcaseBusiness, DatabaseBackup, Library, Sparkles,
 } from 'lucide-react'
 import { useAuth } from '@/providers/auth'
 import { useTheme } from '@/providers/theme'
@@ -61,6 +61,7 @@ function SidebarContent() {
       <nav className="space-y-1">
         <NavItem to="/" end icon={Home} label="หน้าหลัก" />
         <NavItem to="/links" icon={Layers} label="ลิงก์ทั้งหมด" badge={data?.length} />
+        <NavItem to="/collections" icon={Library} label="ชุดลิงก์" />
         <NavItem to="/workspace" icon={Sparkles} label="พื้นที่ส่วนตัว" />
       </nav>
 
@@ -90,6 +91,7 @@ function SidebarContent() {
           </p>
           <nav className="space-y-1">
             <NavItem to="/admin/links" icon={Link2} label="จัดการลิงก์" />
+            <NavItem to="/admin/collections" icon={Library} label="ชุดลิงก์" />
             <NavItem to="/admin/users" icon={Users} label="จัดการพนักงาน" />
             <NavItem to="/admin/categories" icon={FolderTree} label="หมวดหมู่" />
             <NavItem to="/admin/roles" icon={BriefcaseBusiness} label="ตำแหน่งงาน" />

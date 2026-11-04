@@ -1,11 +1,11 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
-import { CheckCircle2, Globe, ImageUp, Loader2, Lock, Search, Wand2, XCircle } from 'lucide-react'
+import { CheckCircle2, Globe, ImageUp, Loader2, Lock, Pencil, Search, Wand2, XCircle } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import type { Category, LinkRow, Role } from '@/lib/types'
 import { callCheckLinks, type AdminProfile } from '@/hooks/admin'
-import { cn, errorMessage, faviconFor, validateUrl } from '@/lib/utils'
+import { cn, errorMessage, faviconFor, findDuplicateLinks, validateUrl } from '@/lib/utils'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
 import { Input, Textarea } from '@/components/ui/input'
@@ -15,6 +15,7 @@ import { Checkbox } from '@/components/ui/checkbox'
 import { Switch } from '@/components/ui/switch'
 import { TagInput } from '@/components/tag-input'
 import { LinkIcon } from '@/components/link-icon'
+import { DuplicateNotice } from '@/components/duplicate-notice'
 
 type Access = 'global' | 'restricted'
 
@@ -59,6 +60,8 @@ export function LinkFormDialog({
   categories,
   profiles,
   groupSuggestions,
+  existingLinks,
+  onEditExisting,
   onOpenChange,
 }: {
   open: boolean
@@ -67,6 +70,10 @@ export function LinkFormDialog({
   categories: Category[]
   profiles: AdminProfile[]
   groupSuggestions: string[]
+  /** ลิงก์ขององค์กรทั้งหมด ใช้ตรวจ URL ซ้ำ */
+  existingLinks: LinkRow[]
+  /** เปิดฟอร์มแก้ไขลิงก์เดิมแทนการสร้างซ้ำ */
+  onEditExisting: (link: LinkRow) => void
   onOpenChange: (open: boolean) => void
 }) {
   const queryClient = useQueryClient()
@@ -115,6 +122,12 @@ export function LinkFormDialog({
       setForm((f) => ({ ...f, category_id: value, access: 'restricted', role_ids: [...f.role_ids, cat.role_id!] }))
     }
   }
+
+  const catById = useMemo(() => new Map(categories.map((c) => [c.id, c])), [categories])
+  const duplicates = useMemo(
+    () => (validateUrl(form.url).ok ? findDuplicateLinks(form.url, existingLinks, link?.id) : []),
+    [form.url, existingLinks, link?.id],
+  )
 
   const filteredProfiles = useMemo(() => {
     const q = userQuery.toLowerCase().trim()
@@ -283,6 +296,28 @@ export function LinkFormDialog({
             {reach === 'fail' && <p className="text-xs text-destructive">{reachDetail || 'เชื่อมต่อไม่ได้ อาจเป็นเว็บภายในที่ต้องใช้ VPN หรือ URL ไม่ถูกต้อง'}</p>}
           </Field>
 
+          <DuplicateNotice
+            message={
+              link
+                ? 'URL นี้ซ้ำกับลิงก์อื่นในระบบ ตรวจสอบว่าไม่ได้แก้ผิดรายการ'
+                : 'มีลิงก์ URL นี้อยู่ในระบบแล้ว แนะนำให้แก้ไขรายการเดิม (เช่น เพิ่มตำแหน่งที่เข้าถึงได้) แทนการสร้างซ้ำ'
+            }
+            matches={duplicates.map((d) => ({
+              id: d.id,
+              title: d.title,
+              url: d.url,
+              icon_url: d.icon_url,
+              note: [d.category_id ? catById.get(d.category_id)?.name : null, d.is_active ? null : 'ปิดใช้งานอยู่']
+                .filter(Boolean)
+                .join(' · '),
+              action: (
+                <Button type="button" size="sm" variant="outline" onClick={() => onEditExisting(d)}>
+                  <Pencil /> แก้ไขรายการเดิม
+                </Button>
+              ),
+            }))}
+          />
+
           <Field label="คำอธิบาย" htmlFor="lf-desc">
             <Textarea id="lf-desc" value={form.description} onChange={(e) => set('description', e.target.value)} rows={2} />
           </Field>
@@ -403,7 +438,9 @@ export function LinkFormDialog({
 
           <DialogFooter>
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>ยกเลิก</Button>
-            <Button type="submit" loading={saving}>{link ? 'บันทึก' : 'เพิ่มลิงก์'}</Button>
+            <Button type="submit" loading={saving} variant={!link && duplicates.length ? 'outline' : 'default'}>
+              {link ? 'บันทึก' : duplicates.length ? 'เพิ่มเป็นรายการใหม่ (ซ้ำ)' : 'เพิ่มลิงก์'}
+            </Button>
           </DialogFooter>
         </form>
       </DialogContent>

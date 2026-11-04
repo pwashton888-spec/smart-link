@@ -20,6 +20,7 @@ const ENTITY: Record<string, string> = {
   user_roles: 'ตำแหน่งของพนักงาน',
   roles: 'ตำแหน่งงาน',
   categories: 'หมวดหมู่',
+  collections: 'ชุดลิงก์',
   profiles: 'บัญชีพนักงาน',
   auth: 'การเข้าสู่ระบบ',
 }

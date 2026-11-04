@@ -116,3 +116,32 @@ export interface LinkCheck {
   detail: string | null
   checked_at: string
 }
+
+export interface Collection {
+  id: string
+  name: string
+  description: string | null
+  icon: string
+  color: string
+  /** null = ชุดลิงก์ขององค์กร / มีค่า = ชุดลิงก์ส่วนตัวของพนักงานคนนั้น */
+  owner_id: string | null
+  /** ชุดขององค์กร : ตำแหน่งที่มองเห็น (ว่าง = ทุกคน) */
+  role_ids: string[]
+  sort_order: number
+  created_at: string
+  updated_at: string
+  collection_items: { link_id: string; sort_order: number }[]
+}
+
+/** ค่าของลิงก์ "ก่อน" การแก้ไขแต่ละครั้ง */
+export interface LinkVersion {
+  id: number
+  link_id: string
+  title: string
+  url: string
+  description: string | null
+  changed_by: string | null
+  changed_at: string
+  is_restore: boolean
+  editor?: { full_name: string } | null
+}
