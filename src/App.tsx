@@ -15,9 +15,11 @@ import NotFoundPage from '@/pages/not-found'
 
 const AllLinksPage = lazy(() => import('@/pages/all-links'))
 const WorkspacePage = lazy(() => import('@/pages/workspace'))
+const CollectionsPage = lazy(() => import('@/pages/collections'))
 const ProfilePage = lazy(() => import('@/pages/profile'))
 const AdminLinksPage = lazy(() => import('@/pages/admin/admin-links'))
 const AdminUsersPage = lazy(() => import('@/pages/admin/admin-users'))
+const AdminCollectionsPage = lazy(() => import('@/pages/admin/admin-collections'))
 const AdminCategoriesPage = lazy(() => import('@/pages/admin/admin-categories'))
 const AdminRolesPage = lazy(() => import('@/pages/admin/admin-roles'))
 const AdminLogsPage = lazy(() => import('@/pages/admin/admin-logs'))
@@ -73,10 +75,12 @@ export default function App() {
         >
           <Route index element={<DashboardPage />} />
           <Route path="links" element={page(<AllLinksPage />)} />
+          <Route path="collections" element={page(<CollectionsPage />)} />
           <Route path="workspace" element={page(<WorkspacePage />)} />
           <Route path="profile" element={page(<ProfilePage />)} />
           <Route path="admin" element={<RequireAdmin><Navigate to="/admin/links" replace /></RequireAdmin>} />
           <Route path="admin/links" element={<RequireAdmin>{page(<AdminLinksPage />)}</RequireAdmin>} />
+          <Route path="admin/collections" element={<RequireAdmin>{page(<AdminCollectionsPage />)}</RequireAdmin>} />
           <Route path="admin/users" element={<RequireAdmin>{page(<AdminUsersPage />)}</RequireAdmin>} />
           <Route path="admin/categories" element={<RequireAdmin>{page(<AdminCategoriesPage />)}</RequireAdmin>} />
           <Route path="admin/roles" element={<RequireAdmin>{page(<AdminRolesPage />)}</RequireAdmin>} />

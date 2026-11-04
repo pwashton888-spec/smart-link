@@ -1,4 +1,4 @@
-import { Copy, ExternalLink, EyeOff, Eye, Info, Pencil, Star, Tag, Trash2, UserCheck } from 'lucide-react'
+import { Copy, ExternalLink, EyeOff, Eye, History, Info, Pencil, Star, Tag, Trash2, UserCheck } from 'lucide-react'
 import type { AccessibleLink } from '@/lib/types'
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
@@ -115,6 +115,9 @@ export function LinkDetailDialog({
                   <>
                     <Button variant="ghost" size="sm" onClick={() => actions.editPersonal(link)}>
                       <Pencil /> แก้ไข
+                    </Button>
+                    <Button variant="ghost" size="sm" onClick={() => actions.showHistory(link)}>
+                      <History /> ประวัติเวอร์ชัน
                     </Button>
                     <Button variant="ghost" size="sm" className="text-destructive" onClick={() => actions.deletePersonal(link)}>
                       <Trash2 /> ลบ

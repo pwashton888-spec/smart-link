@@ -6,10 +6,13 @@ import { Button } from '@/components/ui/button'
 import { Input, Textarea } from '@/components/ui/input'
 import { Field } from '@/components/ui/label'
 import { Select } from '@/components/ui/select'
-import { useCategories, useSavePersonalCategory, useSavePersonalLink } from '@/hooks/data'
-import { errorMessage, validateUrl } from '@/lib/utils'
+import { Eye, Pencil, Star } from 'lucide-react'
+import { useCategories, useMyLinks, useSavePersonalCategory, useSavePersonalLink, useToggleFavorite } from '@/hooks/data'
+import { errorMessage, findDuplicateLinks, validateUrl } from '@/lib/utils'
 import { TagInput } from './tag-input'
 import { PERSONAL_CATEGORY_DEFAULT } from './personal-category-dialog'
+import { DuplicateNotice, type DuplicateMatch } from './duplicate-notice'
+import { useLinkActions } from './link-actions'
 
 const NEW_CATEGORY = '__new'
 
@@ -28,6 +31,9 @@ export function PersonalLinkDialog({
   const save = useSavePersonalLink()
   const saveCategory = useSavePersonalCategory()
   const { data: categories = [] } = useCategories()
+  const { data: myLinks = [] } = useMyLinks()
+  const fav = useToggleFavorite()
+  const actions = useLinkActions()
   const [title, setTitle] = useState('')
   const [url, setUrl] = useState('')
   const [description, setDescription] = useState('')
@@ -48,6 +54,42 @@ export function PersonalLinkDialog({
       { value: NEW_CATEGORY, label: '+ สร้างหมวดหมู่ใหม่…' },
     ]
   }, [categories, personalCategory, link])
+
+  // ตรวจ URL ซ้ำกับลิงก์ที่คุณเห็นอยู่แล้ว (ลิงก์ขององค์กรที่มีสิทธิ์ + ลิงก์ส่วนตัวของคุณ)
+  const duplicates = useMemo<DuplicateMatch[]>(() => {
+    if (!validateUrl(url).ok) return []
+    return findDuplicateLinks(url, myLinks, link?.id).map((d) => {
+      const personal = d.visibility === 'personal'
+      return {
+        id: d.id,
+        title: d.title,
+        url: d.url,
+        icon_url: d.icon_url,
+        note: personal ? `ลิงก์ส่วนตัวของคุณ${d.category ? ` · ${d.category.name}` : ''}` : `ลิงก์ขององค์กร${d.category ? ` · ${d.category.name}` : ''}`,
+        action: personal ? (
+          <Button type="button" size="sm" variant="outline" onClick={() => actions.editPersonal(d)}>
+            <Pencil /> แก้ไขรายการเดิม
+          </Button>
+        ) : d.isFavorite ? (
+          <Button type="button" size="sm" variant="outline" onClick={() => { onOpenChange(false); actions.showDetail(d) }}>
+            <Eye /> ดูลิงก์นี้
+          </Button>
+        ) : (
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            onClick={() => {
+              fav.mutate({ linkId: d.id, favorite: true })
+              onOpenChange(false)
+            }}
+          >
+            <Star /> ปักหมุดลิงก์นี้แทน
+          </Button>
+        ),
+      }
+    })
+  }, [url, myLinks, link?.id, actions, fav, onOpenChange])
 
   useEffect(() => {
     if (!open) return
@@ -96,6 +138,14 @@ export function PersonalLinkDialog({
           <Field label="URL" htmlFor="pl-url" error={errors.url} hint="ระบบจะเติม https:// ให้อัตโนมัติถ้าไม่ได้ใส่">
             <Input id="pl-url" value={url} onChange={(e) => setUrl(e.target.value)} placeholder="https://..." inputMode="url" />
           </Field>
+          <DuplicateNotice
+            matches={duplicates}
+            message={
+              link
+                ? 'URL นี้ซ้ำกับลิงก์อื่นที่คุณมีอยู่แล้ว'
+                : 'คุณมีลิงก์ URL นี้อยู่แล้ว แนะนำให้ใช้รายการเดิมแทนการเพิ่มซ้ำ'
+            }
+          />
           <Field label="หมวดหมู่" htmlFor="pl-cat" error={errors.category} hint="สร้างหมวดหมู่ของคุณเองได้ หมวดหมู่ส่วนตัวมองเห็นเฉพาะคุณ">
             <div className="space-y-2">
               <Select id="pl-cat" value={categoryId} onValueChange={setCategoryId} options={options} placeholder="เลือกหมวดหมู่" />
@@ -118,7 +168,9 @@ export function PersonalLinkDialog({
           </Field>
           <DialogFooter>
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>ยกเลิก</Button>
-            <Button type="submit" loading={save.isPending || saveCategory.isPending}>{link ? 'บันทึก' : 'เพิ่มลิงก์'}</Button>
+            <Button type="submit" loading={save.isPending || saveCategory.isPending} variant={!link && duplicates.length ? 'outline' : 'default'}>
+              {link ? 'บันทึก' : duplicates.length ? 'เพิ่มซ้ำต่อไป' : 'เพิ่มลิงก์'}
+            </Button>
           </DialogFooter>
         </form>
       </DialogContent>

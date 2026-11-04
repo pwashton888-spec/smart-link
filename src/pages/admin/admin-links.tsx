@@ -2,12 +2,12 @@ import { useMemo, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
-import { AlertTriangle, ArrowDown, ArrowUp, Globe, Link2, Loader2, Pencil, Plus, Search, ShieldCheck, Star, Trash2, Users } from 'lucide-react'
+import { AlertTriangle, ArrowDown, ArrowUp, Copy, Globe, History, Link2, Loader2, Pencil, Plus, Search, ShieldCheck, Star, Trash2, Users } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { useCategories, useRawLinks, useRoles } from '@/hooks/data'
 import { callCheckLinks, useAdminProfiles, useLinkChecks } from '@/hooks/admin'
 import type { LinkRow } from '@/lib/types'
-import { cn, errorMessage, formatDateTime, hostnameOf } from '@/lib/utils'
+import { cn, errorMessage, formatDateTime, hostnameOf, normalizeUrl } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Select, SELECT_NONE } from '@/components/ui/select'
@@ -17,6 +17,7 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { ConfirmDialog } from '@/components/ui/alert-dialog'
 import { EmptyState, ErrorState } from '@/components/empty-state'
 import { LinkIcon } from '@/components/link-icon'
+import { LinkHistoryDialog } from '@/components/link-history-dialog'
 import { LinkFormDialog } from './link-form-dialog'
 import { AdminHeader } from './admin-header'
 
@@ -37,6 +38,7 @@ export default function AdminLinksPage() {
   const [checking, setChecking] = useState(false)
   const [editing, setEditing] = useState<LinkRow | null | undefined>(undefined)
   const [deleting, setDeleting] = useState<LinkRow | null>(null)
+  const [historyId, setHistoryId] = useState<string | null>(null)
 
   const roleById = useMemo(() => new Map(roles.map((r) => [r.id, r])), [roles])
   const catById = useMemo(() => new Map(categories.map((c) => [c.id, c])), [categories])
@@ -51,9 +53,22 @@ export default function AdminLinksPage() {
     [orgLinks],
   )
 
+  // ลิงก์ที่ URL ซ้ำกัน (หลังทำให้เป็นรูปมาตรฐาน) : id -> จำนวนรายการในกลุ่มเดียวกัน
+  const duplicateCount = useMemo(() => {
+    const byKey = new Map<string, string[]>()
+    for (const l of orgLinks) {
+      const key = normalizeUrl(l.url)
+      if (key) byKey.set(key, [...(byKey.get(key) ?? []), l.id])
+    }
+    const result = new Map<string, number>()
+    for (const ids of byKey.values()) if (ids.length > 1) for (const id of ids) result.set(id, ids.length)
+    return result
+  }, [orgLinks])
+  const historyLink = useMemo(() => orgLinks.find((l) => l.id === historyId) ?? null, [orgLinks, historyId])
+
   const filtered = useMemo(() => {
     const q = query.toLowerCase().trim()
-    return orgLinks.filter((l) => {
+    const rows = orgLinks.filter((l) => {
       if (catFilter !== SELECT_NONE && l.category_id !== catFilter) return false
       if (accessFilter === 'global' && l.visibility !== 'global') return false
       if (accessFilter === 'users' && !l.link_user_permissions.length) return false
@@ -62,10 +77,14 @@ export default function AdminLinksPage() {
       if (statusFilter === 'inactive' && l.is_active) return false
       if (statusFilter === 'featured' && !l.is_featured) return false
       if (statusFilter === 'broken' && checks?.get(l.id)?.status !== 'broken') return false
+      if (statusFilter === 'duplicate' && !duplicateCount.has(l.id)) return false
       if (!q) return true
       return [l.title, l.url, l.description ?? '', l.tags.join(' '), l.group_name ?? ''].some((s) => s.toLowerCase().includes(q))
     })
-  }, [orgLinks, query, catFilter, accessFilter, statusFilter, checks])
+    // ตัวกรองลิงก์ซ้ำ : เรียงให้ลิงก์ URL เดียวกันอยู่ติดกัน
+    if (statusFilter === 'duplicate') rows.sort((a, b) => (normalizeUrl(a.url) ?? '').localeCompare(normalizeUrl(b.url) ?? ''))
+    return rows
+  }, [orgLinks, query, catFilter, accessFilter, statusFilter, checks, duplicateCount])
 
   async function patch(link: LinkRow, values: Partial<LinkRow>, message: string) {
     queryClient.setQueryData<LinkRow[]>(['links'], (old) => old?.map((l) => (l.id === link.id ? { ...l, ...values } : l)))
@@ -189,6 +208,7 @@ export default function AdminLinksPage() {
             { value: 'inactive', label: 'ปิดใช้งาน' },
             { value: 'featured', label: 'ลิงก์แนะนำ' },
             { value: 'broken', label: 'ลิงก์เสีย (จากการตรวจล่าสุด)' },
+            { value: 'duplicate', label: `ลิงก์ซ้ำ (URL เดียวกัน)${duplicateCount.size ? ` · ${duplicateCount.size}` : ''}` },
           ]}
         />
       </div>
@@ -206,7 +226,7 @@ export default function AdminLinksPage() {
         />
       ) : (
         <div className="overflow-hidden rounded-2xl border bg-card/80 shadow-soft">
-          <div className="hidden grid-cols-[72px_minmax(0,2fr)_minmax(0,1fr)_minmax(0,1.6fr)_88px_88px_96px] items-center gap-3 border-b bg-muted/40 px-4 py-2.5 text-xs font-medium text-muted-foreground lg:grid">
+          <div className="hidden grid-cols-[72px_minmax(0,2fr)_minmax(0,1fr)_minmax(0,1.6fr)_88px_88px_132px] items-center gap-3 border-b bg-muted/40 px-4 py-2.5 text-xs font-medium text-muted-foreground lg:grid">
             <span>ลำดับ</span><span>ลิงก์</span><span>หมวดหมู่</span><span>สิทธิ์การเข้าถึง</span><span className="text-center">แนะนำ</span><span className="text-center">เปิดใช้</span><span className="text-right">จัดการ</span>
           </div>
           <div className="divide-y">
@@ -214,7 +234,7 @@ export default function AdminLinksPage() {
               <div
                 key={l.id}
                 className={cn(
-                  'grid grid-cols-[1fr_auto] items-center gap-3 px-4 py-3 lg:grid-cols-[72px_minmax(0,2fr)_minmax(0,1fr)_minmax(0,1.6fr)_88px_88px_96px]',
+                  'grid grid-cols-[1fr_auto] items-center gap-3 px-4 py-3 lg:grid-cols-[72px_minmax(0,2fr)_minmax(0,1fr)_minmax(0,1.6fr)_88px_88px_132px]',
                   !l.is_active && 'opacity-60',
                 )}
               >
@@ -228,6 +248,11 @@ export default function AdminLinksPage() {
                     <div className="flex min-w-0 items-center gap-2">
                       <p className="truncate text-sm font-medium">{l.title}</p>
                       <CheckBadge l={l} />
+                      {duplicateCount.has(l.id) && (
+                        <Badge variant="warning" className="shrink-0" title="มีลิงก์อื่นที่ URL เดียวกัน ดูได้จากตัวกรอง “ลิงก์ซ้ำ”">
+                          <Copy className="h-3 w-3" /> ซ้ำ {duplicateCount.get(l.id)}
+                        </Badge>
+                      )}
                     </div>
                     <p className="truncate text-xs text-muted-foreground">{hostnameOf(l.url)}{l.group_name && ` · ${l.group_name}`}</p>
                     <div className="mt-1 lg:hidden"><AccessCell l={l} /></div>
@@ -244,6 +269,7 @@ export default function AdminLinksPage() {
                   <Switch checked={l.is_active} onCheckedChange={(v) => patch(l, { is_active: v }, v ? 'เปิดใช้งานลิงก์แล้ว' : 'ปิดใช้งานลิงก์แล้ว')} aria-label="เปิด/ปิดใช้งาน" />
                 </div>
                 <div className="flex justify-end gap-0.5">
+                  <Button variant="ghost" size="icon" onClick={() => setHistoryId(l.id)} aria-label="ประวัติเวอร์ชัน" title="ประวัติเวอร์ชัน"><History /></Button>
                   <Button variant="ghost" size="icon" onClick={() => setEditing(l)} aria-label="แก้ไข"><Pencil /></Button>
                   <Button variant="ghost" size="icon" className="text-destructive hover:text-destructive" onClick={() => setDeleting(l)} aria-label="ลบ"><Trash2 /></Button>
                 </div>
@@ -260,8 +286,11 @@ export default function AdminLinksPage() {
         categories={categories}
         profiles={profiles}
         groupSuggestions={groupSuggestions}
+        existingLinks={orgLinks}
+        onEditExisting={(l) => setEditing(l)}
         onOpenChange={(o) => !o && setEditing(undefined)}
       />
+      <LinkHistoryDialog link={historyLink} onOpenChange={(o) => !o && setHistoryId(null)} />
       <ConfirmDialog
         open={!!deleting}
         onOpenChange={(o) => !o && setDeleting(null)}

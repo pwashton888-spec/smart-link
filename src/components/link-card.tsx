@@ -1,4 +1,4 @@
-import { Copy, EllipsisVertical, ExternalLink, Eye, EyeOff, Pencil, Star, Trash2 } from 'lucide-react'
+import { Copy, EllipsisVertical, ExternalLink, Eye, EyeOff, History, Pencil, Star, Trash2 } from 'lucide-react'
 import type { AccessibleLink } from '@/lib/types'
 import { useOpenLink, useSetHidden, useToggleFavorite } from '@/hooks/data'
 import { cn, hostnameOf } from '@/lib/utils'
@@ -38,6 +38,7 @@ function CardMenu({ link }: { link: AccessibleLink }) {
           <>
             <DropdownMenuSeparator />
             <DropdownMenuItem onSelect={() => actions.editPersonal(link)}><Pencil /> แก้ไข</DropdownMenuItem>
+            <DropdownMenuItem onSelect={() => actions.showHistory(link)}><History /> ประวัติเวอร์ชัน</DropdownMenuItem>
             <DropdownMenuItem destructive onSelect={() => actions.deletePersonal(link)}><Trash2 /> ลบ</DropdownMenuItem>
           </>
         )}
