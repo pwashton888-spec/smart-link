@@ -37,6 +37,8 @@ export interface Category {
   sort_order: number
   is_system: boolean
   is_active: boolean
+  /** null = หมวดหมู่ขององค์กร / มีค่า = หมวดหมู่ส่วนตัวของพนักงานคนนั้น */
+  owner_id: string | null
 }
 
 export interface LinkRow {

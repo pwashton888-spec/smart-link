@@ -234,6 +234,8 @@ export interface PersonalLinkInput {
   url: string
   description: string
   tags: string[]
+  /** หมวดหมู่ของลิงก์ (null = เว็บไซต์ส่วนตัว) */
+  categoryId: string | null
 }
 
 export function useSavePersonalLink() {
@@ -250,6 +252,7 @@ export function useSavePersonalLink() {
         url: checked.url,
         description: input.description.trim() || null,
         tags: input.tags,
+        category_id: input.categoryId ?? personalCategory?.id ?? null,
       }
       if (input.id) {
         const { error } = await supabase.from('links').update(row).eq('id', input.id)
@@ -259,7 +262,6 @@ export function useSavePersonalLink() {
           ...row,
           visibility: 'personal',
           owner_id: session!.user.id,
-          category_id: personalCategory?.id ?? null,
           sort_order: Math.floor(Date.now() / 1000),
         })
         if (error) throw error
@@ -267,6 +269,63 @@ export function useSavePersonalLink() {
     },
     onSuccess: (_d, input) => toast.success(input.id ? 'บันทึกการแก้ไขแล้ว' : 'เพิ่มลิงก์ส่วนตัวแล้ว'),
     onSettled: () => queryClient.invalidateQueries({ queryKey: ['links'] }),
+  })
+}
+
+export interface PersonalCategoryInput {
+  id?: string
+  name: string
+  color: string
+  icon: string
+}
+
+/** หมวดหมู่ส่วนตัว : พนักงานสร้างเอง เห็นเฉพาะตัวเอง */
+export function useSavePersonalCategory() {
+  const queryClient = useQueryClient()
+  const { session } = useAuth()
+  return useMutation({
+    mutationFn: async (input: PersonalCategoryInput): Promise<string> => {
+      const name = input.name.trim()
+      if (!name) throw new Error('กรุณากรอกชื่อหมวดหมู่')
+      if (name.length > 60) throw new Error('ชื่อหมวดหมู่ยาวได้ไม่เกิน 60 ตัวอักษร')
+      const row = { name, color: input.color, icon: input.icon }
+      if (input.id) {
+        const { error } = await supabase.from('categories').update(row).eq('id', input.id)
+        if (error) throw error
+        return input.id
+      }
+      const { data, error } = await supabase
+        .from('categories')
+        .insert({
+          ...row,
+          slug: `my-${crypto.randomUUID()}`,
+          owner_id: session!.user.id,
+          sort_order: Math.floor(Date.now() / 1000),
+        })
+        .select('id')
+        .single()
+      if (error) throw error
+      return data.id as string
+    },
+    onSuccess: (_d, input) => toast.success(input.id ? 'บันทึกหมวดหมู่แล้ว' : 'สร้างหมวดหมู่แล้ว'),
+    onSettled: () => queryClient.invalidateQueries({ queryKey: ['categories'] }),
+  })
+}
+
+export function useDeletePersonalCategory() {
+  const queryClient = useQueryClient()
+  const { session } = useAuth()
+  return useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await supabase.from('categories').delete().eq('id', id).eq('owner_id', session!.user.id)
+      if (error) throw error
+    },
+    onSuccess: () => toast.success('ลบหมวดหมู่แล้ว ลิงก์ในหมวดนี้ย้ายไป “เว็บไซต์ส่วนตัว”'),
+    onError: (e) => toast.error(errorMessage(e)),
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: ['categories'] })
+      queryClient.invalidateQueries({ queryKey: ['links'] })
+    },
   })
 }
 

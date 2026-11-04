@@ -8,7 +8,8 @@ import { PersonalLinkDialog } from './personal-link-dialog'
 
 interface LinkActions {
   showDetail: (link: AccessibleLink) => void
-  addPersonal: () => void
+  /** เปิดฟอร์มเพิ่มลิงก์ส่วนตัว (ระบุหมวดหมู่ที่เลือกไว้ล่วงหน้าได้) */
+  addPersonal: (categoryId?: string) => void
   editPersonal: (link: AccessibleLink) => void
   deletePersonal: (link: AccessibleLink) => void
 }
@@ -30,6 +31,7 @@ export function LinkActionsProvider({ children }: { children: React.ReactNode })
   const [detailId, setDetailId] = useState<string | null>(null)
   const [editing, setEditing] = useState<AccessibleLink | null | undefined>(undefined)
   const [deleting, setDeleting] = useState<AccessibleLink | null>(null)
+  const [defaultCategoryId, setDefaultCategoryId] = useState<string | undefined>(undefined)
   const del = useDeletePersonalLink()
 
   const detail = useMemo(() => data?.find((l) => l.id === detailId) ?? null, [data, detailId])
@@ -37,7 +39,10 @@ export function LinkActionsProvider({ children }: { children: React.ReactNode })
   const actions = useMemo<LinkActions>(
     () => ({
       showDetail: (l) => setDetailId(l.id),
-      addPersonal: () => setEditing(null),
+      addPersonal: (categoryId) => {
+        setDefaultCategoryId(categoryId)
+        setEditing(null)
+      },
       editPersonal: (l) => {
         setDetailId(null)
         setEditing(l)
@@ -57,6 +62,7 @@ export function LinkActionsProvider({ children }: { children: React.ReactNode })
       <PersonalLinkDialog
         open={editing !== undefined}
         link={editing ?? null}
+        defaultCategoryId={defaultCategoryId}
         onOpenChange={(o) => !o && setEditing(undefined)}
       />
       <ConfirmDialog

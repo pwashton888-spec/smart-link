@@ -141,7 +141,7 @@ export default function DashboardPage() {
               {isLoading ? <Skeleton className="h-7 w-10 bg-white/20" /> : <p className="text-2xl font-semibold">{favorites.length}</p>}
               <p className="text-xs text-white/70">รายการโปรด</p>
             </div>
-            <Button onClick={addPersonal} className="hidden bg-white text-primary hover:bg-white/90 sm:inline-flex">
+            <Button onClick={() => addPersonal()} className="hidden bg-white text-primary hover:bg-white/90 sm:inline-flex">
               <Plus /> เพิ่มลิงก์ส่วนตัว
             </Button>
           </div>
@@ -165,7 +165,7 @@ export default function DashboardPage() {
               </button>
             )}
           </div>
-          <Button onClick={addPersonal} size="icon" className="h-12 w-12 rounded-2xl sm:hidden" aria-label="เพิ่มลิงก์ส่วนตัว">
+          <Button onClick={() => addPersonal()} size="icon" className="h-12 w-12 rounded-2xl sm:hidden" aria-label="เพิ่มลิงก์ส่วนตัว">
             <Plus className="!size-5" />
           </Button>
         </div>
@@ -207,7 +207,7 @@ export default function DashboardPage() {
           icon={Layers}
           title="ยังไม่มีลิงก์สำหรับคุณ"
           description="เมื่อผู้ดูแลระบบเพิ่มลิงก์ให้ตำแหน่งของคุณ ลิงก์จะแสดงที่นี่ทันที หรือเริ่มเพิ่มลิงก์ส่วนตัวของคุณเอง"
-          action={<Button onClick={addPersonal}><Plus /> เพิ่มลิงก์ส่วนตัว</Button>}
+          action={<Button onClick={() => addPersonal()}><Plus /> เพิ่มลิงก์ส่วนตัว</Button>}
         />
       ) : (
         <div className="space-y-10">
@@ -245,7 +245,7 @@ export default function DashboardPage() {
             icon={Sparkles}
             links={personal}
             view={view}
-            action={<Button variant="ghost" size="sm" onClick={addPersonal}><Plus /> เพิ่ม</Button>}
+            action={<Button variant="ghost" size="sm" onClick={() => addPersonal()}><Plus /> เพิ่ม</Button>}
           />
 
           {categories.some((c) => categoryCounts.get(c.id)) && (

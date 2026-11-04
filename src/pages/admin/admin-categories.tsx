@@ -129,7 +129,8 @@ export default function AdminCategoriesPage() {
   const [editing, setEditing] = useState<Category | null | undefined>(undefined)
   const [deleting, setDeleting] = useState<Category | null>(null)
 
-  const list = categories.data ?? []
+  // หมวดหมู่ส่วนตัวของพนักงานไม่แสดงที่นี่ (เป็นของแต่ละคน)
+  const list = (categories.data ?? []).filter((c) => !c.owner_id)
   const countFor = (id: string) => links.filter((l) => l.category_id === id && l.visibility !== 'personal').length
 
   async function move(index: number, dir: -1 | 1) {

@@ -135,7 +135,7 @@ export default function AdminBackupPage() {
     try {
       const [roles, categories, links, link_roles, link_user_permissions, user_roles] = await Promise.all([
         fetchAll('roles'),
-        fetchAll('categories'),
+        fetchAll('categories').then((rows) => rows.filter((c) => !c.owner_id)),
         // ลิงก์ส่วนตัวของพนักงานไม่ถูกส่งออก (ผู้ดูแลไม่มีสิทธิ์อ่านอยู่แล้ว)
         fetchAll('links', true),
         fetchAll('link_roles'),
@@ -169,7 +169,7 @@ export default function AdminBackupPage() {
       // ลำดับสำคัญ: ตำแหน่ง → หมวดหมู่ → ลิงก์ → ความสัมพันธ์
       const steps: [string, Record<string, unknown>[], string][] = [
         ['roles', strip(data.roles, ['created_at', 'updated_at']), 'id'],
-        ['categories', strip(data.categories, ['created_at', 'updated_at']), 'id'],
+        ['categories', strip(data.categories.filter((c) => !c.owner_id), ['created_at', 'updated_at']), 'id'],
         ['links', strip(data.links.filter((l) => l.visibility !== 'personal'), ['created_at', 'updated_at', 'created_by', 'updated_by', 'owner_id']), 'id'],
         ['link_roles', data.link_roles, 'link_id,role_id'],
       ]
